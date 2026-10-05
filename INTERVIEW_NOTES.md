@@ -1,9 +1,86 @@
 # Ghi chú phỏng vấn CF Trainer
 
-File này ghi lại mọi quyết định thiết kế và lý do. Bản đầy đủ (độ phức tạp, luồng dữ liệu,
-câu hỏi phỏng vấn) được hoàn thiện ở bước tài liệu cuối cùng.
+Tài liệu này dành cho bạn khi ôn phỏng vấn: mọi quyết định thiết kế và lý do, độ phức tạp từng hàm
+phân tích, luồng dữ liệu, điểm yếu và cách cải thiện, cùng 20 câu hỏi hay gặp kèm gợi ý trả lời.
 
-## Nhật ký quyết định
+**Mục lục**
+
+1. Tóm tắt dự án và số liệu
+2. Luồng dữ liệu từ Codeforces đến màn hình
+3. Nhật ký quyết định (theo từng bước build)
+4. Độ phức tạp các hàm trong `analysis.py`
+5. Điểm yếu và cách cải thiện
+6. Về `test_analysis.py`
+7. 20 câu hỏi phỏng vấn kèm gợi ý trả lời
+
+---
+
+## 1. Tóm tắt dự án và số liệu
+
+CF Trainer là web app phân tích sâu **một** tài khoản Codeforces: rank và số điểm còn thiếu, xu hướng
+rating, độ khó thoải mái và khoảng nên luyện, thống kê từng tag, 5 tag yếu kèm tài liệu học, thói quen
+nộp bài, danh sách upsolve, và 10 bài gợi ý cụ thể.
+
+- **Backend:** FastAPI + SQLAlchemy 2 + Pydantic + httpx; SQLite khi dev, PostgreSQL khi chạy Docker/production.
+- **Frontend:** React 19 + Vite + Recharts, CSS thuần, có dark mode và responsive.
+- **Hạ tầng:** Docker Compose (PostgreSQL + API + nginx), GitHub Actions với 4 job.
+- **Test:** 111 test backend (24 đặc tả trong `test_analysis.py` + 15 edge case, 17 client, 7 cache,
+  3 model, 18 API, 22 resources, 5 app/config). Không test nào gọi Codeforces thật.
+- **CI:** pytest trên SQLite, pytest trên PostgreSQL (service container), `npm ci && npm run build`,
+  và smoke test toàn bộ stack Docker Compose. Cả 4 job đều xanh.
+- **Số đo thật:** sync tourist (5.491 submission, 308 contest) khoảng 8 giây (bị chặn bởi rate limit
+  2 giây/lần gọi); report đầu tiên 2,5 giây (gồm tải danh sách bài), các lần sau dùng cache;
+  snapshot của tourist chiếm 1,9 MB.
+
+Câu giới thiệu mẫu (phỏng vấn bằng tiếng Anh thì bạn nên tự nói lại bằng lời của mình):
+
+> "I built CF Trainer, a web app that analyses one Codeforces account and tells the user which
+> topics hold their rating back and exactly which problems to practise next. The core is a set of
+> pure, unit-tested analysis functions; around it there's a FastAPI backend that syncs data under
+> Codeforces' rate limit, stores a JSON snapshot per user in PostgreSQL, and caches the
+> 10,000-problem list for a day; and a React front end with charts. It's tested in CI against both
+> SQLite and PostgreSQL, and the whole stack runs with Docker Compose."
+
+## 2. Luồng dữ liệu từ Codeforces đến màn hình
+
+```
+Trình duyệt (React)
+  │ 1. người dùng nhập handle, bấm Analyse  (App.jsx: status = loading)
+  │ 2. POST /api/users/{handle}/sync        (api.js; dev: Vite proxy, Docker: nginx, prod: VITE_API_BASE)
+  ▼
+FastAPI route sync_user  ── kiểm tra handle bằng regex (422 nếu sai)
+  ▼
+services/sync.sync_user
+  │ 3. CodeforcesClient: user.info → user.rating → user.status  (lang=en)
+  │    mỗi lời gọi đi qua RateLimiter dùng chung (≥ 2 giây giữa hai lần gọi)
+  │    FAILED "not found" → HandleNotFound → 404;  lỗi khác → CodeforcesError → 502
+  │ 4. slim_submission: chỉ giữ các trường cần dùng
+  │ 5. ghi users + user_snapshots (một snapshot mỗi user, cập nhật tại chỗ), commit
+  ▼
+Trình duyệt nhận SyncResult → 6. GET /api/users/{handle}/report
+  ▼
+FastAPI route get_report
+  │ 7. find_user (không phân biệt hoa thường); chưa sync → 404
+  │ 8. ProblemCache.get(client.problemset): bộ nhớ, TTL 24 giờ; hết hạn → problemset.problems
+  │    (gộp solvedCount từ problemStatistics)
+  │ 9. build_report: gọi các hàm thuần trong analysis.py
+  │    rank_info, rating_trend, difficulty_profile → comfort_rating → target_range,
+  │    tag_stats, weak_topics (dùng tag_importance), verdict_breakdown, contest_level,
+  │    upsolve_list, recommend; ghép resources.py (link học, lời khuyên verdict)
+  │ 10. Pydantic Report → JSON
+  ▼
+Trình duyệt: setReport(data) → mỗi phần là một component
+  OverviewCard · RatingChart (LineChart) · DifficultyChart (BarChart + vùng target) · WeakTopics
+  Recommendations · Habits · UpsolveList · TopicTable  → Recharts vẽ SVG
+```
+
+Chi tiết đáng nhớ: dữ liệu Codeforces được **lưu lại**, nên report không phải gọi lại API của user
+(chỉ cần danh sách bài, vốn đã được cache). Mọi lời gọi API trong sync diễn ra **trước** khi ghi DB,
+nên sync lỗi giữa chừng không làm hỏng dữ liệu cũ.
+
+---
+
+## 3. Nhật ký quyết định
 
 ### 0. Thiết lập Git
 
@@ -96,7 +173,7 @@ câu hỏi phỏng vấn) được hoàn thiện ở bước tài liệu cuối 
   kết quả giống hệt `sorted(...)[:limit]` (Python đảm bảo điều này trong tài liệu).
 - **`worst_drop` = delta nhỏ nhất**, đúng theo docstring (chỉ lịch sử rỗng mới trả `None`). Nếu user
   chưa bao giờ tụt rating thì giá trị này dương; giao diện hiển thị "No drops yet" trong trường hợp đó.
-- `test_analysis_edge_cases.py` bổ sung 17 test cho biên rank, thứ tự đầu vào, submission đang chấm,
+- `test_analysis_edge_cases.py` bổ sung 15 test cho biên rank, thứ tự đầu vào, submission đang chấm,
   hòa điểm float, giới hạn bao gồm hai đầu của target range, tag `*special` trong gợi ý.
 
 ### 5. Tài liệu học (resources.py)
@@ -205,8 +282,9 @@ câu hỏi phỏng vấn) được hoàn thiện ở bước tài liệu cuối 
 - Đã chạy backend + frontend (Vite proxy), sync và report cho `tourist`, `DmitriyH` (Expert, 1709),
   `MikeMirzayanov` (chưa có rating). `emilia2008` **không tồn tại** trên Codeforces → 404 đúng như
   thiết kế (đã kiểm tra cả trên giao diện); vì vậy dùng các handle trên thay thế.
-- Đã chụp màn hình bằng Edge headless (profile tạm) ở chế độ sáng, tối, desktop và màn hình hẹp
-  (500px, và khung 375px qua iframe) để soát bố cục.
+- Đã chụp màn hình bằng Edge headless (profile tạm): chế độ sáng và tối ở 1280px, toàn bộ báo cáo ở
+  500px (Edge headless không cho cửa sổ hẹp hơn), và khung 375px qua iframe (thanh trên cùng và trang
+  chào mừng vừa khít; trong iframe headless, báo cáo không kịp tải xong trước lúc chụp).
 - **Lỗi thật tìm được và đã sửa:**
   1. **Codeforces trả tiếng Nga** (rank "легендарный гроссмейстер", tên contest/bài tiếng Nga) khi
      không có tham số `lang`. Sửa: client luôn gửi `lang=en`; thêm test.
@@ -248,3 +326,225 @@ câu hỏi phỏng vấn) được hoàn thiện ở bước tài liệu cuối 
   namespace riêng; `localhost` trong container backend là chính nó. Compose tạo DNS nội bộ theo tên service.
 - Đã kiểm tra `package-lock.json` (tạo trên Windows) có đủ binary rollup/esbuild cho Linux (gnu và
   musl), nên `npm ci` chạy được trong Alpine và trên Ubuntu của CI.
+
+### 12. CI (GitHub Actions)
+
+- **4 job:** `backend` (pytest trên SQLite), `backend-postgres` (cùng bộ test, chạy trên service container
+  `postgres:16` qua `TEST_DATABASE_URL`), `frontend` (`npm ci && npm run build`), và `docker` (chạy sau hai
+  job đầu): `docker compose up --build --wait`, rồi gọi `/api/health` trực tiếp và qua nginx, kiểm tra
+  fallback SPA, và gọi report của một user không tồn tại để chắc API truy vấn được PostgreSQL (phải trả 404).
+  Job docker **không** gọi Codeforces.
+- **Vì sao chạy test trên cả PostgreSQL:** SQLite và PostgreSQL khác nhau ở JSON/JSONB, múi giờ, cách báo
+  lỗi unique. Bug kiểu "chạy được trên máy, hỏng trên production" thường nằm ở đây.
+- **Kiểm tra CI không cần `gh`:** repo public nên đọc trạng thái qua GitHub REST API
+  (`/commits/{sha}/check-runs`) bằng `curl`.
+- **Nâng phiên bản action:** CI cảnh báo `checkout@v4`, `setup-python@v5`, `setup-node@v4` chạy trên Node 20
+  (đã deprecated). Mình đọc `action.yml` của các tag mới để xác nhận chúng chạy Node 24, rồi chuyển sang
+  `checkout@v6`, `setup-python@v6`, `setup-node@v6`. Sau đó CI không còn cảnh báo.
+- `concurrency` hủy lần chạy cũ khi có push mới trên cùng nhánh; `permissions: contents: read` (quyền tối thiểu).
+- CI ở các commit `0ec5ad2`, `1b65262` (trước khi implement `analysis.py`) bị đỏ là **đúng dự kiến**:
+  khi đó test đặc tả chưa có code để chạy. Từ commit `4cb66e1` trở đi, CI luôn xanh.
+
+### 13. Tài liệu
+
+- `README.md` (tiếng Anh): các phần của báo cáo, quy tắc phân tích, tech stack, cấu trúc, cách chạy,
+  biến môi trường, API, Design notes (lưu trữ, rate limit, cache, giới hạn của weak score).
+- `DEPLOY.md` (tiếng Anh): Neon (PostgreSQL) + Render (backend Docker, static site). Thông tin gói miễn
+  phí được tra lại vào ngày 05/10/2026: Render free web service ngủ sau 15 phút, có 750 giờ/tháng; từ
+  01/08/2026 workspace Hobby chỉ còn 5 GB bandwidth/tháng; PostgreSQL free của Render hết hạn sau 30 ngày,
+  nên chọn Neon (0,5 GB, không hết hạn). Mình không tạo tài khoản dịch vụ nào.
+
+---
+
+## 4. Độ phức tạp các hàm trong `analysis.py`
+
+Ký hiệu: `S` = số submission của user, `U` = số bài khác nhau user đã nộp (`U ≤ S`), `P` = số bài trên
+Codeforces (~10.000), `T` = số tag mỗi bài (thường ≤ 5, coi là hằng số nhỏ), `K` = số tag khác nhau (~37),
+`H` = số contest có rating, `B` = số mức rating (≤ 28), `C` = số contest live, `L` = số chữ cái bài (≤ 26),
+`R` = số rank (10), `X` = số bài cần upsolve, `k`/`limit` = số kết quả trả về.
+
+| Hàm | Thời gian | Bộ nhớ thêm | Ghi chú |
+|---|---|---|---|
+| `problem_key`, `real_tags` | O(1), O(T) | O(T) | |
+| `_problem_histories` (helper) | O(S) | O(U) | một lượt duyệt; lần nộp sớm nhất so theo `(time, id)` |
+| `rank_info` | O(log R) | O(1) | `bisect_right` trên danh sách ngưỡng |
+| `solved_problems` | O(S) | O(U) | `setdefault`: mỗi bài được giữ một lần |
+| `rating_trend` | O(H) | O(H) | danh sách delta |
+| `difficulty_profile` | O(S + B log B) | O(B) | thực tế là O(S) |
+| `comfort_rating` | O(B) | O(1) | |
+| `target_range` | O(1) | O(1) | |
+| `tag_stats` | O(S + U·T + K log K) | O(U + K) | |
+| `tag_importance` | O(P·T) | O(K) | quét toàn bộ danh sách bài |
+| `weak_topics` | O(P·T + S + U·T + K log K) | O(U + K) | gọi `tag_importance` và `solved_problems` |
+| `verdict_breakdown` | O(S) | O(U) | |
+| `contest_level` | O(S + L log L) | O(C·L) | tập contest theo từng chữ cái |
+| `upsolve_list` | O(S + X log X) | O(U) | |
+| `recommend` | O(P·T + P log limit) | O(P) | `heapq.nsmallest`, không sắp xếp cả danh sách |
+
+**Cả một report:** O(S + P·T). Với S = 5.000 và P = 10.000 chỉ khoảng 10^5 phép tính, mất vài mili giây.
+Thời gian thật nằm ở mạng (rate limit của Codeforces), không nằm ở thuật toán.
+
+**Nếu phải nhanh hơn** (ví dụ phục vụ rất nhiều người):
+
+- Đánh chỉ mục danh sách bài theo mức rating ngay khi làm mới cache. Khi đó `tag_importance` và
+  `recommend` chỉ quét các bài trong target range (khoảng 300 trong 10.000), tức O(P_range·T).
+- Tính sẵn `tag_importance` cho từng target range (chỉ có khoảng 30 range khả dĩ) mỗi lần làm mới cache: O(1) khi tra.
+- Cache cả report theo `(user, last_synced_at, phiên bản cache)`, vì report không đổi nếu không sync lại.
+
+---
+
+## 5. Điểm yếu và cách cải thiện
+
+**Về phân tích (định nghĩa bắt buộc nên mình giữ nguyên, nhưng phải biết nói về chúng):**
+
+1. **`comfort_rating` nhạy với ngoại lệ.** Chỉ cần giải 3 bài ở một mức là được tính. Ví dụ thật: DmitriyH
+   có rating 1709 nhưng comfort 2500, nên target thành 2600–2800. *Cải thiện:* yêu cầu tỉ lệ AC ở mức đó
+   ≥ 50%, chỉ xét 6–12 tháng gần đây, hoặc chặn `base ≤ rating + 300`.
+2. **Target vượt thang rating của bài.** Từ khoảng 3300 trở lên, range (ví dụ 3600–3800 của tourist)
+   không có bài nào, nên không có tag yếu hay gợi ý. *Cải thiện:* kẹp range vào [800, rating cao nhất của bài].
+3. **Weak score bỏ qua lần thử thất bại và thời gian.** Một tag thử 10 lần không giải được có điểm bằng tag
+   chưa bao giờ đụng tới. *Cải thiện:* đưa tỉ lệ thất bại vào công thức, giảm trọng số bài giải đã lâu,
+   hoặc so tỉ lệ giải từng tag của user với trung bình những người cùng rating (cần dữ liệu nhiều user).
+4. **Các tag không độc lập** (`dp` và `math` hay đi cùng nhau), nên top 5 có thể trùng ý. *Cải thiện:*
+   đa dạng hóa kết quả (kiểu MMR) hoặc gom tag hay đi cùng nhau thành cụm.
+5. **Tag và rating của Codeforces không hoàn hảo:** tag thiếu, bài mới chưa có rating (bị loại khỏi phân tích).
+6. **Bài trùng giữa Div. 1 và Div. 2** có id khác nhau, nên có thể gợi ý một bài mà user đã giải ở bản kia.
+   *Cải thiện:* gộp theo `(name, rating)`.
+7. **Mẫu số của `contest_level`** chỉ đếm những contest có submission. Contest đăng ký mà không nộp bài nào
+   thì không được đếm, nên tỉ lệ bị thổi phồng một chút. *Cải thiện:* lấy thêm contest từ `user.rating`.
+8. **`solvedCount` làm tiêu chí phụ** ưu tiên bài cũ, nhiều người giải (dễ tìm editorial). Đó là ưu
+   điểm, nhưng cũng nghiêng về bài cũ.
+
+**Về hệ thống:**
+
+9. **Rate limiter và cache nằm trong từng process.** Chạy nhiều instance thì mỗi instance có giới hạn và
+   cache riêng. *Cải thiện:* Redis (token bucket dùng chung, cache dùng chung) hoặc một worker duy nhất
+   giữ toàn bộ lưu lượng tới Codeforces.
+10. **Sync chạy đồng bộ** (5–10 giây) và chiếm một thread của threadpool (mặc định 40 thread), nên nhiều
+    người sync cùng lúc phải xếp hàng sau rate limit. *Cải thiện:* hàng đợi job (RQ/Arq/Celery) với
+    `POST /sync` trả 202 cùng job id, frontend hỏi trạng thái định kỳ hoặc dùng SSE.
+11. **Sync luôn tải lại toàn bộ `user.status`.** *Cải thiện:* sync tăng dần (`user.status` có tham số
+    `from`/`count`), chỉ lấy submission mới hơn id lớn nhất đã lưu.
+12. **Không có chống lạm dụng:** ai cũng có thể bấm sync liên tục. *Cải thiện:* cooldown theo handle (ví
+    dụ không sync lại trong 5 phút mà trả bản đã lưu), rate limit theo IP.
+13. **`create_all` thay vì migration.** *Cải thiện:* Alembic khi schema bắt đầu thay đổi.
+14. **Frontend chưa có test.** *Cải thiện:* Vitest + Testing Library cho component, Playwright cho E2E
+    (luồng nhập handle → báo cáo, với API giả).
+15. **Link tài liệu có thể chết theo thời gian.** *Cải thiện:* job định kỳ kiểm tra link (không chạy trong unit test).
+16. **Cảnh báo của Starlette** về `httpx2` trong TestClient (xem bước 1): vô hại; thêm `httpx2` vào
+    requirements nếu muốn hết cảnh báo.
+
+---
+
+## 6. Về `test_analysis.py`
+
+- **Không sửa file này.** Cả 24 test đều xanh với code hiện tại, và mình không thấy test nào sai đặc tả.
+- Nhận xét nhỏ, không phải lỗi: test của `rating_trend` chỉ có trường hợp có tụt rating. Theo docstring,
+  `worst_drop` là delta nhỏ nhất, nên với lịch sử toàn tăng nó là số **dương**. Đúng đặc tả, nhưng tên
+  dễ gây hiểu nhầm, nên giao diện hiện "No drops yet" khi `worst_drop ≥ 0`.
+- `test_analysis_edge_cases.py` (15 test) phủ những chỗ đặc tả chưa nói: biên rank, thứ tự đầu vào,
+  hòa trong cùng một giây, submission đang chấm, hòa điểm float, hai đầu của range, `*special` trong gợi ý.
+
+---
+
+## 7. 20 câu hỏi phỏng vấn kèm gợi ý trả lời
+
+**1. "Tell me about a project you're proud of."**
+Dùng câu mẫu ở phần 1, rồi chọn *một* điểm kỹ thuật để đào sâu (rate limit dùng chung, cache có
+stale-on-error, hoặc bug float khi xếp hạng). Kết bằng một điểm yếu bạn biết và cách sửa: người phỏng vấn
+thích người tự thấy giới hạn của mình.
+
+**2. Vì sao lưu snapshot JSON thay vì bảng chuẩn hóa? Nhược điểm?**
+Report luôn đọc toàn bộ lịch sử của một user, và các hàm phân tích nhận đúng dữ liệu thô của API, nên
+snapshot ít code nhất và không phải ánh xạ. Nhược điểm: không truy vấn SQL được bên trong (ví dụ "số bài
+giải theo tháng" hay thống kê nhiều user). Khi cần thì thêm bảng chuẩn hóa song song.
+
+**3. Sync lại làm sao không trùng? Hai request sync cùng lúc thì sao?**
+`user_snapshots.user_id` unique, nên service cập nhật dòng cũ. Nếu hai request cùng tạo một user mới,
+request thứ hai dính `IntegrityError`; mình rollback, tra lại rồi cập nhật dòng vừa được tạo (có test mô
+phỏng). Ràng buộc đặt ở tầng DB, nên đúng kể cả khi code có bug.
+
+**4. 20 người bấm Analyse cùng lúc, rate limit còn đúng không?**
+Trong một process thì đúng: một `RateLimiter` dùng chung, lock được giữ trong lúc chờ, nên các request
+xếp hàng cách nhau 2 giây (có test bằng thread thật). Người thứ 20 phải chờ khoảng 20 × 3 × 2 = 120 giây,
+nên trải nghiệm kém. Chạy nhiều process thì sai, vì mỗi process có limiter riêng. Cách sửa: limiter dùng
+chung qua Redis, hoặc hàng đợi job với một worker gọi Codeforces.
+
+**5. Codeforces sập thì app phản ứng thế nào?**
+Client đổi lỗi mạng/HTTP thành `CodeforcesError` → API trả 502 kèm thông báo rõ. Cache danh sách bài vẫn
+phục vụ bản cũ nếu làm mới thất bại, và hẹn thử lại sau 5 phút. Frontend: nếu sync trả 502 mà đã có bản
+lưu thì vẫn hiện báo cáo cũ kèm cảnh báo. Sync không ghi gì khi lỗi, nên dữ liệu cũ còn nguyên.
+
+**6. Giải thích công thức weak score. Một tag chỉ xuất hiện 2% thì có nên luyện không?**
+`importance` = mức độ phổ biến ở mức bạn sắp lên; chia cho `1 + solved_in_range` để tag bạn đã giải nhiều
+thì giảm ưu tiên; `+1` tránh chia cho 0 và làm điểm giảm dần. Tag 2% bị loại bởi `min_importance = 0.05`:
+luyện nó ít có lợi cho rating. Điểm yếu: xem phần 5, mục 3–4.
+
+**7. Độ phức tạp của `weak_topics` và `recommend` với 10.000 bài và 5.000 submission? Nhanh hơn được không?**
+`weak_topics`: O(P·T + S); `recommend`: O(P·T + P log 10) nhờ `heapq.nsmallest`. Khoảng 10^5 phép tính,
+vài ms. Muốn nhanh hơn: chỉ mục bài theo rating, tính sẵn importance cho từng range khi làm mới cache,
+cache report (phần 4).
+
+**8. `first_try_rate` tính thế nào? Có bẫy gì?**
+API trả mới nhất trước, nên không được lấy phần tử đầu. Phải lấy lần nộp có `creationTimeSeconds` nhỏ
+nhất; hai lần nộp cùng giây thì so theo `id`. Submission đang chấm (`TESTING`) bị bỏ qua, không bị coi là
+lần thử đầu bị sai.
+
+**9. Gợi ý bài có thể sai ở đâu?**
+Rating bài là ước lượng; tag thiếu hoặc sai; bài trùng Div. 1/Div. 2; comfort bị đẩy cao bởi vài bài
+khó giải lúc luyện tập; user có thể đã giải bài đó ở tài khoản khác. Cách kiểm chứng: hỏi người dùng thật
+xem gợi ý có hữu ích không, rồi đo tỉ lệ họ giải các bài được gợi ý.
+
+**10. Vì sao dùng `solvedCount` làm tiêu chí phụ?**
+Nhiều người giải thường nghĩa là đề rõ ràng, có editorial và lời giải tham khảo, nên là thước đo chất
+lượng rẻ. Nhược điểm: nghiêng về bài cũ. Nó chỉ là tiêu chí phụ, sau số tag yếu khớp và độ khó.
+
+**11. Cache danh sách bài: chạy 3 server thì sao? Khi nào cần Redis? Lần đầu gọi report mất bao lâu?**
+Mỗi server một bản và tự tải lại (3 lần gọi Codeforces mỗi ngày, chấp nhận được). Cần Redis khi muốn
+dùng chung giữa các instance, khi restart thường xuyên (ví dụ Render free ngủ sau 15 phút), hoặc khi
+rate limit dùng chung. Lần đầu khoảng 2,5 giây vì tải vài MB JSON; có thể làm ấm cache bằng job nền lúc khởi động.
+
+**12. Vì sao truyền hàm lấy thời gian vào `ProblemCache` và `RateLimiter`?**
+Để test xác định được và chạy tức thì: test "24 giờ sau hết hạn" chỉ cần cộng số vào đồng hồ giả,
+không phải `sleep`. Đây là dependency injection ở mức hàm.
+
+**13. Làm sao test API mà không gọi mạng? Vì sao cần `StaticPool`?**
+`app.dependency_overrides` thay `get_cf_client` bằng client giả, `get_session` bằng SQLite in-memory,
+`get_problem_cache` bằng cache mới. Client thật thì test bằng `httpx.MockTransport`. `StaticPool`: mỗi
+connection tới `sqlite://` là một database rỗng riêng, nên cần dùng chung một connection để dữ liệu ghi
+trong request còn thấy được trong test.
+
+**14. Vì sao mỗi request cần một database session riêng?**
+Session giữ transaction và identity map, và không an toàn khi dùng chung giữa các thread. Mỗi request
+một session thì lỗi của request này không làm hỏng request khác, và session luôn được đóng (dependency
+dùng `yield` + `finally`).
+
+**15. Vì sao tách logic ra `services/` thay vì viết hết trong route?**
+Route chỉ lo HTTP (tham số, mã lỗi); service lo nghiệp vụ và test được mà không cần HTTP. Phân tích còn
+tách xa hơn nữa: hàm thuần, không DB, không mạng. Nhờ đó 39 test phân tích chạy trong 0,06 giây.
+
+**16. Số người dùng tăng 100 lần, phần nào gặp vấn đề trước?**
+Rate limit của Codeforces (một lời gọi mỗi 2 giây, mỗi sync tốn 3 lời gọi), nên tối đa khoảng 10 sync
+mỗi phút cho mỗi IP. Sau đó là threadpool bị chiếm bởi các sync đang chờ. Cách sửa: hàng đợi job, sync
+tăng dần, cooldown theo handle, cache report. Database và CPU phân tích còn rất xa giới hạn.
+
+**17. Dữ liệu đi từ Codeforces đến biểu đồ qua những bước nào?**
+Xem sơ đồ ở phần 2: sync (3 lời gọi API, rate limit, lưu snapshot) → report (đọc snapshot, danh sách bài
+từ cache, các hàm phân tích, Pydantic) → React state → component → Recharts SVG.
+
+**18. Vite proxy giải quyết vấn đề gì? CORS là gì? Production xử lý thế nào?**
+Khi dev, frontend ở `:5173` và backend ở `:8000` là hai origin khác nhau. Proxy giúp trình duyệt chỉ thấy
+một origin, nên không cần CORS. Ở Docker, nginx làm việc tương tự (`/api` → backend). Khi deploy tách
+domain: `VITE_API_BASE` trỏ tới backend lúc build, và backend đặt `CORS_ORIGINS` đúng domain frontend.
+
+**19. Image khác container thế nào? Vì sao backend gọi DB bằng host `db`? Dữ liệu PostgreSQL ở đâu khi tắt container?**
+Image là bản đóng gói chỉ đọc; container là một lần chạy của image. Trong Compose, mỗi service là một host
+trong mạng nội bộ có DNS theo tên service; `localhost` trong container backend là chính nó. Dữ liệu nằm
+trong named volume `pgdata`, nên còn nguyên khi container bị xóa (trừ khi `down --volumes`).
+
+**20. Kể một bug bạn đã tìm ra và sửa.**
+Chọn một trong ba: (a) chạy với API thật thì thấy rank trả về bằng tiếng Nga, vì Codeforces mặc định tiếng
+Nga khi thiếu `lang=en`. Đây là bug mà mock không bao giờ lộ ra, và bài học là luôn chạy thử với dữ liệu
+thật. (b) Lỗi float: 0.6/3 < 0.2 làm luật hòa theo tên tag sai; sửa bằng làm tròn khi so sánh, và viết test
+chứng minh. (c) Codeforces trả HTTP 400 *kèm JSON* khi handle không tồn tại; gọi `raise_for_status()`
+trước thì mất thông tin, nên phải đọc body trước.
