@@ -52,3 +52,27 @@ câu hỏi phỏng vấn) được hoàn thiện ở bước tài liệu cuối 
   psycopg2 (không cài); hàm này đổi sang `postgresql+psycopg://` (psycopg 3).
 - Test luôn ép `DATABASE_URL=sqlite://` trong `conftest.py` để không bao giờ đụng vào `dev.db`.
   Đặt `TEST_DATABASE_URL` thì chính các test đó chạy trên PostgreSQL (CI làm việc này).
+
+### 3. Codeforces client
+
+- **Rate limiter dùng chung cả process** (`_shared_limiter`): mọi `CodeforcesClient` dùng chung một
+  `RateLimiter`. Nếu mỗi client có lock riêng thì hai request đến cùng lúc (FastAPI chạy route `def`
+  trong threadpool) vẫn có thể gọi Codeforces sát nhau và vi phạm giới hạn.
+- **Giữ lock trong lúc `sleep`:** các luồng xếp hàng và đi lần lượt, mỗi lượt cách nhau ít nhất 2 giây.
+  Không giữ lock khi gửi HTTP, vì chỉ cần giãn thời điểm *bắt đầu* các request.
+- **Lịch được tính chính xác:** `_next_allowed = start + interval`, nên dù `sleep` ngủ quá một chút,
+  lịch vẫn không trôi.
+- **Đồng hồ thô trên Windows:** Python 3.12 trên Windows dùng `GetTickCount64` cho `time.monotonic`
+  (độ phân giải 15,6 ms), nên limiter có thể bắt đầu sớm tối đa 1 tick (không cộng dồn). Với khoảng
+  2 giây, sai số dưới 1%. Trên Linux (production) độ phân giải tính bằng nano giây.
+- **`clock` và `sleep` truyền qua constructor:** test kiểm tra lịch chờ bằng đồng hồ giả, không phải chờ thật.
+- **Đọc body JSON trước status code:** Codeforces trả lỗi `FAILED` với HTTP 400 *kèm JSON*. Nếu gọi
+  `raise_for_status()` trước thì sẽ mất comment "handle not found". Chỉ khi không có body hợp lệ
+  (ví dụ trang HTML lỗi 502) mới báo lỗi theo status code.
+- **Nhận diện handle không tồn tại:** comment bắt đầu bằng `handle:`/`handles:` (lỗi tham số handle,
+  kể cả sai định dạng) hoặc chứa "handle ... not found" → `HandleNotFound`; còn lại là `CodeforcesError`.
+- **Tự thử lại khi "Call limit exceeded"** (tối đa 2 lần, mỗi lần đi qua limiter). Lỗi này chỉ xảy ra
+  khi có process khác dùng chung IP (ví dụ nhiều server), vì limiter đã giới hạn trong process.
+- **`get_cf_client()` với `lru_cache`:** một client mỗi process (dùng chung connection pool và
+  limiter); test thay nó bằng client giả qua `app.dependency_overrides`.
+- `problemset()` chỉ gán `solvedCount` khi có thống kê; nếu thiếu thì để trống, và `recommend` coi là 0.
