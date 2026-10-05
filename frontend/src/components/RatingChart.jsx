@@ -16,11 +16,17 @@ import { Tile } from "./OverviewCard.jsx";
 
 const AXIS_TICK = { fill: "var(--muted)", fontSize: 12 };
 
-function yDomain(points) {
+// Round axis: about 5 ticks on a clean step (100, 200, 250, 500 or 1000 rating points).
+function yAxis(points) {
   const values = points.map((p) => p.rating);
-  const lo = Math.max(0, Math.floor((Math.min(...values) - 100) / 100) * 100);
-  const hi = Math.ceil((Math.max(...values) + 100) / 100) * 100;
-  return [lo, hi];
+  const min = Math.min(...values) - 50;
+  const max = Math.max(...values) + 50;
+  const step = [100, 200, 250, 500, 1000].find((s) => (max - min) / s <= 6) ?? 1000;
+  const lo = Math.max(0, Math.floor(min / step) * step);
+  const hi = Math.ceil(max / step) * step;
+  const ticks = [];
+  for (let t = lo; t <= hi; t += step) ticks.push(t);
+  return { domain: [lo, hi], ticks };
 }
 
 // Rank colour bands behind the line, like the chart on a Codeforces profile.
@@ -70,6 +76,7 @@ export default function RatingChart({ trend }) {
     rank: c.rank,
   }));
   const hasDrop = trend.worst_drop != null && trend.worst_drop < 0;
+  const axis = points.length ? yAxis(points) : null;
 
   return (
     <Section
@@ -95,7 +102,7 @@ export default function RatingChart({ trend }) {
           <div className="chart" role="img" aria-label={`Rating history over ${points.length} contests`}>
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={points} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
-                {rankBands(yDomain(points)).map((band) => (
+                {rankBands(axis.domain).map((band) => (
                   <ReferenceArea
                     key={band.title}
                     y1={band.from}
@@ -120,7 +127,8 @@ export default function RatingChart({ trend }) {
                   minTickGap={24}
                 />
                 <YAxis
-                  domain={yDomain(points)}
+                  domain={axis.domain}
+                  ticks={axis.ticks}
                   tick={AXIS_TICK}
                   stroke="var(--axis)"
                   tickLine={false}

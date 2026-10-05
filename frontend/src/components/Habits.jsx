@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { formatNumber, formatPercent } from "../format.js";
 import Section from "./Section.jsx";
 import { Empty } from "./States.jsx";
@@ -15,8 +16,19 @@ function BarRow({ label, share, value }) {
   );
 }
 
+// ICPC-style rounds have problems up to M or later; show the usual Div. 1/2 range first.
+const LETTERS_SHOWN = 8;
+// Verdicts arrive most frequent first; the long tail is mostly under 1%.
+const VERDICTS_SHOWN = 5;
+
 export default function Habits({ habits }) {
+  const [showAllLetters, setShowAllLetters] = useState(false);
+  const [showAllVerdicts, setShowAllVerdicts] = useState(false);
   const acceptance = habits.total_submissions ? habits.accepted / habits.total_submissions : null;
+  const visibleLetters = showAllLetters
+    ? habits.contest_level
+    : habits.contest_level.slice(0, LETTERS_SHOWN);
+  const visibleVerdicts = showAllVerdicts ? habits.verdicts : habits.verdicts.slice(0, VERDICTS_SHOWN);
 
   return (
     <Section
@@ -39,22 +51,29 @@ export default function Habits({ habits }) {
       {habits.verdicts.length === 0 ? (
         <Empty>No failed submissions. Impressive.</Empty>
       ) : (
-        <ul className="bar-list">
-          {habits.verdicts.map((v) => (
-            <li key={v.verdict}>
-              <BarRow
-                label={v.label}
-                share={v.share}
-                value={
-                  <>
-                    {formatPercent(v.share)} <span className="muted">({formatNumber(v.count)})</span>
-                  </>
-                }
-              />
-              {v.advice && <p className="advice">{v.advice}</p>}
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="bar-list">
+            {visibleVerdicts.map((v) => (
+              <li key={v.verdict}>
+                <BarRow
+                  label={v.label}
+                  share={v.share}
+                  value={
+                    <>
+                      {formatPercent(v.share)} <span className="muted">({formatNumber(v.count)})</span>
+                    </>
+                  }
+                />
+                {v.advice && <p className="advice">{v.advice}</p>}
+              </li>
+            ))}
+          </ul>
+          {habits.verdicts.length > VERDICTS_SHOWN && (
+            <button type="button" className="link-button" onClick={() => setShowAllVerdicts((v) => !v)}>
+              {showAllVerdicts ? "Show fewer verdicts" : `Show all ${habits.verdicts.length} verdicts`}
+            </button>
+          )}
+        </>
       )}
 
       <h3 className="subheading">In live contests</h3>
@@ -78,13 +97,22 @@ export default function Habits({ habits }) {
           {habits.contest_level.length === 0 ? (
             <Empty>No problems solved during a live contest yet.</Empty>
           ) : (
-            <ul className="bar-list letters">
-              {habits.contest_level.map((level) => (
-                <li key={level.letter}>
-                  <BarRow label={level.letter} share={level.rate} value={formatPercent(level.rate)} />
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="bar-list letters">
+                {visibleLetters.map((level) => (
+                  <li key={level.letter}>
+                    <BarRow label={level.letter} share={level.rate} value={formatPercent(level.rate)} />
+                  </li>
+                ))}
+              </ul>
+              {habits.contest_level.length > LETTERS_SHOWN && (
+                <button type="button" className="link-button" onClick={() => setShowAllLetters((v) => !v)}>
+                  {showAllLetters
+                    ? "Show fewer letters"
+                    : `Show all ${habits.contest_level.length} letters`}
+                </button>
+              )}
+            </>
           )}
         </>
       )}

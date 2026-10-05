@@ -198,6 +198,10 @@ VERDICT_ADVICE: dict[str, str] = {
         "Your solution was hacked: think about worst-case inputs (overflow, anti-hash tests, "
         "slow cases for unordered_map) before locking a problem."
     ),
+    "PARTIAL": (
+        "Partial score: the solution passes the easy subtasks or test groups but not all of them. "
+        "Check the full constraints and handle the general case, not only the small one."
+    ),
     "IDLENESS_LIMIT_EXCEEDED": (
         "In interactive problems, flush the output after every query and read exactly what the "
         "interactor sends."

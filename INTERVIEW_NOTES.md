@@ -199,3 +199,29 @@ câu hỏi phỏng vấn) được hoàn thiện ở bước tài liệu cuối 
 - **Tách chunk:** react và vendor (recharts, d3) riêng khỏi code app (27 kB), nên khi deploy bản mới
   trình duyệt chỉ tải lại phần app.
 - `VITE_API_BASE` rỗng khi dev (đi qua Vite proxy `/api` → `:8000`), và đặt URL backend khi deploy riêng.
+
+### 10. Chạy thật với dữ liệu Codeforces
+
+- Đã chạy backend + frontend (Vite proxy), sync và report cho `tourist`, `DmitriyH` (Expert, 1709),
+  `MikeMirzayanov` (chưa có rating). `emilia2008` **không tồn tại** trên Codeforces → 404 đúng như
+  thiết kế (đã kiểm tra cả trên giao diện); vì vậy dùng các handle trên thay thế.
+- Đã chụp màn hình bằng Edge headless (profile tạm) ở chế độ sáng, tối, desktop và màn hình hẹp
+  (500px, và khung 375px qua iframe) để soát bố cục.
+- **Lỗi thật tìm được và đã sửa:**
+  1. **Codeforces trả tiếng Nga** (rank "легендарный гроссмейстер", tên contest/bài tiếng Nga) khi
+     không có tham số `lang`. Sửa: client luôn gửi `lang=en`; thêm test.
+  2. **Verdict `PARTIAL`** (contest có subtask) chiếm 39% số lần nộp sai của tourist nhưng chưa có
+     lời khuyên → thêm `VERDICT_ADVICE["PARTIAL"]`.
+  3. **Danh sách chữ cái quá dài** (A–U từ contest kiểu ICPC) và nhiều verdict 0% → giao diện chỉ hiện
+     8 chữ cái / 5 verdict đầu, có nút "Show all".
+  4. Mốc trục Y lẻ (1550, 55, 165) → tự tính mốc tròn; ô "Target range" bị ngắt dòng trên điện thoại → sửa CSS.
+- **Số đo:** sync tourist (5.491 submission, 308 contest) mất khoảng 8 giây (3 lời gọi cách nhau 2 giây,
+  cộng thời gian tải); report đầu tiên mất 2,5 giây (tải danh sách bài); các lần sau dùng cache.
+- **Quan sát về định nghĩa (không sửa vì đề bài bắt buộc):**
+  - tourist: comfort 3500 → target 3600–3800, nhưng bài khó nhất trên Codeforces là 3500, nên không có
+    tag yếu và gợi ý; giao diện giải thích lý do.
+  - DmitriyH: rating 1709 nhưng đã giải ≥ 3 bài 2500 (luyện tập/upsolve), nên comfort = 2500 và
+    target = 2600–2800, quá cao so với rating thi đấu. Đây là điểm yếu của định nghĩa `comfort_rating`
+    (xem phần "Điểm yếu và cách cải thiện").
+  - `live_contests` (405) của tourist lớn hơn số contest có rating (308), vì có cả contest không tính
+    rating mà vẫn thi trực tiếp.

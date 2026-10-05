@@ -40,6 +40,22 @@ def test_ok_returns_result_and_sends_params():
     assert seen[0].url.params["handle"] == "alice"
 
 
+def test_every_call_asks_for_english():
+    # Codeforces defaults to Russian ranks, contest names and problem names.
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return ok({"problems": [], "problemStatistics": []} if "problemset" in request.url.path else [{}])
+
+    client = make_client(handler)
+    client.user_info("alice")
+    client.user_rating("alice")
+    client.user_submissions("alice")
+    client.problemset()
+    assert [request.url.params.get("lang") for request in seen] == ["en"] * 4
+
+
 def test_failed_status_raises_codeforces_error():
     client = make_client(lambda request: failed("contestId: Contest with id 1 not started"))
     with pytest.raises(CodeforcesError) as info:

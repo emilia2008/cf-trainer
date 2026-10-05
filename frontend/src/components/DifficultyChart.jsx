@@ -36,6 +36,16 @@ function rows(buckets, lo, hi) {
   return result;
 }
 
+// Whole-number ticks on a clean step (1, 2, 5, 10, 20, 25, 50, ...), at most 5 intervals.
+function countTicks(rows) {
+  const max = Math.max(1, ...rows.map((r) => r.attempted));
+  const steps = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000];
+  const step = steps.find((s) => max / s <= 5) ?? Math.ceil(max / 5);
+  const ticks = [];
+  for (let t = 0; t < max + step; t += step) ticks.push(t);
+  return ticks;
+}
+
 function DifficultyTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
   const row = payload[0].payload;
@@ -60,6 +70,7 @@ function DifficultyTooltip({ active, payload }) {
 export default function DifficultyChart({ difficulty }) {
   const { buckets, comfort_rating: comfort, target_range: range } = difficulty;
   const data = buckets.length ? rows(buckets, range.lo, range.hi) : [];
+  const yTicks = countTicks(data);
 
   return (
     <Section
@@ -116,6 +127,8 @@ export default function DifficultyChart({ difficulty }) {
                   minTickGap={12}
                 />
                 <YAxis
+                  ticks={yTicks}
+                  domain={[0, yTicks[yTicks.length - 1]]}
                   tick={AXIS_TICK}
                   stroke="var(--axis)"
                   tickLine={false}

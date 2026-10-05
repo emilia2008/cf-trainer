@@ -100,6 +100,8 @@ class CodeforcesClient:
 
     def _fetch(self, method: str, params: dict[str, str]) -> dict:
         """One HTTP call. Returns the JSON body; raises CodeforcesError if there is none."""
+        # Without lang=en Codeforces answers in Russian (ranks, contest and problem names).
+        params = {**params, "lang": "en"}
         try:
             response = self._http.get(f"/{method}", params=params)
         except httpx.HTTPError as exc:
