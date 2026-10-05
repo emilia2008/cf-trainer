@@ -2,7 +2,9 @@
 
 File này đi kèm với `LEARNING.md`. `LEARNING.md` cho biết **cần học gì**, còn file này cho biết **làm theo thứ tự nào** và **nhắn gì cho Claude** ở mỗi bước.
 
-Tổng thời gian dự kiến: khoảng 7 ngày (ngày 6 đến 12 trong kế hoạch 14 ngày).
+**Mục tiêu sản phẩm:** nhập một Codeforces handle, nhận báo cáo phân tích chuyên sâu: rating và rank hiện tại, cần cải thiện gì, cần học gì, và nên luyện bài nào để tăng rating.
+
+Tổng thời gian dự kiến: khoảng 7–8 ngày.
 
 ---
 
@@ -30,7 +32,7 @@ Mở VS Code, bấm biểu tượng Extensions (Ctrl+Shift+X) rồi tìm theo t�
 - **ESLint**: báo lỗi JavaScript/React.
 
 **Rất nên có**
-- **SQLite Viewer**: mở file `dev.db` để xem dữ liệu trong bảng (dùng ở Bước 1, 4).
+- **SQLite Viewer**: mở file `dev.db` để xem dữ liệu trong bảng (dùng ở Bước 1, 5).
 - **Ruff**: tự format code Python và bắt lỗi phổ biến. Bật "Format on Save" trong Settings.
 - **Prettier**: tự format code JavaScript.
 - **Docker** (Microsoft): xem container đang chạy (từ Bước 9).
@@ -68,6 +70,24 @@ uvicorn app.main:app --reload      # mở http://localhost:8000/docs
 
 Nếu mở được trang `/docs` và thấy `GET /api/health` trả về `{"status": "ok"}` khi bấm "Try it out" là đã sẵn sàng.
 
+
+---
+
+## Sản phẩm cuối cùng trông như thế nào
+
+Người dùng nhập handle, bấm **Analyse**, và nhận một trang báo cáo gồm:
+
+| Phần | Trả lời câu hỏi | Hàm trong `analysis.py` |
+|---|---|---|
+| Tổng quan | Mình đang ở rank nào, còn bao nhiêu điểm nữa lên rank tiếp? | `rank_info`, `solved_problems` |
+| Xu hướng rating | Mình đang lên hay xuống? | `rating_trend` |
+| Độ khó | Mình thoải mái ở mức nào, nên luyện mức nào? | `difficulty_profile`, `comfort_rating`, `target_range` |
+| Chủ đề | Mình mạnh/yếu chủ đề nào? | `tag_stats` |
+| Chủ đề yếu + cần học gì | Chủ đề nào kéo rating xuống, học ở đâu? | `weak_topics` + `resources.py` |
+| Thói quen | Hay sai kiểu gì (WA/TLE)? Contest thường giải tới bài nào? | `verdict_breakdown`, `contest_level` |
+| Upsolve | Bài nào trong contest mình bỏ dở? | `upsolve_list` |
+| Gợi ý luyện | Nên làm bài nào tiếp theo? | `recommend` |
+
 ---
 
 ## Cách làm việc với Claude
@@ -76,25 +96,26 @@ Nếu mở được trang `/docs` và thấy `GET /api/health` trả về `{"sta
 
 1. Đọc phần tương ứng trong `LEARNING.md` (15–30 phút).
 2. Gửi prompt của bước đó cho Claude.
-3. Đọc code Claude viết, **chạy test**, chạy thử trên `/docs`.
+3. Đọc code, **chạy test**, chạy thử trên `/docs`.
 4. Gửi **prompt kiểm tra hiểu bài** (cuối mỗi bước). Không trả lời được thì hỏi lại cho đến khi hiểu.
 5. Commit: `git add -A && git commit -m "<mô tả ngắn>"` rồi `git push`.
 
-**Nếu dùng Claude trong chat (không phải trong terminal):** Claude không tự đọc được repo của bạn. Mỗi prompt hãy dán kèm nội dung các file được nhắc tới. Nếu repo đã kết nối với Claude qua GitHub thì chỉ cần nói tên file.
+**Nếu dùng Claude trong chat:** Claude không tự đọc được máy của bạn. Mỗi prompt hãy dán kèm nội dung các file được nhắc tới (hoặc chỉ cần nói tên file nếu repo đã kết nối qua GitHub).
 
-**Hai chế độ:** mỗi bước có prompt **Tự làm** (Claude chỉ gợi ý, bạn viết code) và **Làm nhanh** (Claude viết, bạn đọc hiểu). Phần lõi (Bước 3) nên dùng chế độ Tự làm vì phỏng vấn sẽ hỏi sâu nhất ở đây.
+**Hai chế độ:** mỗi bước có prompt **Tự làm** (Claude chỉ gợi ý, bạn viết code) và **Làm nhanh** (Claude viết, bạn đọc hiểu). **Bước 3 và 4 (phân tích) nên tự làm**, vì đây là phần phỏng vấn hỏi sâu nhất và cũng gần với CP nhất.
 
 ### Prompt mở đầu (gửi ở đầu mỗi phiên làm việc mới)
 
 ```
-Mình đang build project CF Trainer: web app phân tích dữ liệu Codeforces,
-FastAPI + SQLAlchemy + PostgreSQL ở backend, React + Vite ở frontend.
+Mình đang build CF Trainer: web app phân tích chuyên sâu một tài khoản Codeforces
+(rank hiện tại, chủ đề yếu, cần học gì, nên luyện bài nào để tăng rating).
+Backend FastAPI + SQLAlchemy + PostgreSQL, frontend React + Vite.
 Mục tiêu: đưa vào CV để nộp intern SWE (Citadel, TikTok) trong 2 tuần.
 
 Quy tắc khi làm việc với mình:
 - Giải thích ngắn gọn bằng tiếng Việt, code và comment bằng tiếng Anh.
 - Mỗi lần chỉ làm một bước nhỏ, không sửa file ngoài phạm vi được yêu cầu.
-- Không đổi tên hàm hay chữ ký hàm đã có, vì test phụ thuộc vào chúng.
+- Không đổi tên hay chữ ký các hàm đã có trong app/analysis.py, vì test phụ thuộc vào chúng.
 - Sau khi viết code, nói rõ mình cần chạy lệnh gì để kiểm tra.
 - Với mỗi quyết định thiết kế, nêu 1 lựa chọn khác và vì sao không chọn.
 
@@ -105,69 +126,69 @@ Cấu trúc repo: xem README.md. Hôm nay mình làm Bước <số> trong BUILD_
 
 ## Bước 1: Thiết kế database (`app/models.py`)
 
-**Mục tiêu:** thêm bảng bài tập (problem) và bảng bài đã giải (solve).
+**Mục tiêu:** lưu submissions và lịch sử rating của mỗi user. Đọc comment trong file: có 2 thiết kế A (bảng chuẩn hóa) và B (snapshot JSON).
 
 **Prompt (Tự làm):**
 ```
-Mở app/models.py. Mình cần thiết kế 2 bảng còn thiếu: problems và solves.
-Đừng viết code. Hãy hỏi mình 3–4 câu để mình tự nghĩ ra schema
-(khóa chính là gì, lưu tags thế nào, làm sao chặn trùng lặp, cần index cột nào).
-Sau khi mình trả lời, nhận xét và chỉ ra chỗ sai.
+Mở app/models.py. Mình cần chọn giữa thiết kế A (bảng submissions + rating_changes)
+và B (một bảng snapshot với cột JSON). Đừng viết code.
+Hỏi mình 3 câu để mình tự quyết định (dữ liệu dùng thế nào, có cần query SQL bên trong không,
+đồng bộ lại thì xử lý ra sao). Sau đó nhận xét lựa chọn của mình.
 ```
 
 **Prompt (Làm nhanh):**
 ```
-Mở app/models.py. Hãy thêm 2 model SQLAlchemy 2.0: Problem và Solve.
-- Problem: định danh bằng (contest_id, index), có name, rating (có thể null), tags.
-- Solve: user nào giải bài nào, lúc nào; một user không được có 2 dòng cho cùng một bài.
-Giải thích: khóa chính, khóa ngoại, unique constraint, index bạn chọn, và cách bạn lưu tags.
-Vẽ sơ đồ quan hệ bằng text.
+Mở app/models.py. Hãy implement thiết kế <A hoặc B> bằng SQLAlchemy 2.0.
+Yêu cầu: đồng bộ lại một user phải thay dữ liệu cũ, không tạo bản trùng.
+Giải thích khóa chính, khóa ngoại, unique constraint, index, và vẽ sơ đồ quan hệ bằng text.
 ```
 
-**Kiểm tra:** chạy `uvicorn` lại, không lỗi. Mở file `dev.db` bằng extension SQLite của VS Code và thấy các bảng mới.
+**Kiểm tra:** chạy lại `uvicorn`, không lỗi; mở `dev.db` bằng SQLite Viewer thấy bảng mới.
 
 **Prompt kiểm tra hiểu bài:**
 ```
-Đóng vai người phỏng vấn. Hỏi mình 3 câu về schema vừa làm, từng câu một,
+Đóng vai người phỏng vấn. Hỏi mình 3 câu về thiết kế database vừa làm, từng câu một,
 chờ mình trả lời rồi mới hỏi câu tiếp. Cuối cùng chấm điểm và chỉ chỗ cần học thêm.
 ```
 
-**Commit:** `Add Problem and Solve models`
+**Commit:** `Add storage for submissions and rating history`
 
 ---
 
 ## Bước 2: Client gọi Codeforces (`app/cf_client.py`)
 
-**Mục tiêu:** gọi được API Codeforces, tự giới hạn 1 request mỗi 2 giây, báo lỗi rõ ràng.
+**Mục tiêu:** gọi 4 endpoint, tự giới hạn 1 request mỗi 2 giây, báo lỗi rõ ràng.
+
+Trước khi code, mở thử trên trình duyệt để xem dữ liệu thật:
+`https://codeforces.com/api/user.rating?handle=<handle của bạn>`
 
 **Prompt (Tự làm):**
 ```
 Mở app/cf_client.py. Mình sẽ tự viết hàm _get. Cho mình gợi ý từng bước:
 1) cách nhớ thời điểm gọi lần cuối và chờ cho đủ khoảng cách,
-2) cách xử lý lỗi HTTP và lỗi status FAILED.
-Chỉ đưa gợi ý, không đưa code hoàn chỉnh. Sau khi mình viết xong sẽ dán lại để bạn review.
+2) cách xử lý lỗi HTTP, status FAILED, và nhận ra lỗi "handle not found".
+Chỉ đưa gợi ý, không đưa code. Mình viết xong sẽ dán lại để bạn review.
 ```
 
 **Prompt (Làm nhanh):**
 ```
-Hoàn thiện app/cf_client.py: _get (có rate limit theo settings.codeforces_min_interval_seconds,
-dùng time.monotonic), user_info, user_submissions. Thêm hàm problemset() trả về
-danh sách problems từ /problemset.problems.
-Sau đó viết tests/test_cf_client.py dùng httpx.MockTransport để test mà không gọi mạng thật:
-- trả về result khi status OK,
-- ném CodeforcesError khi status FAILED,
-- ném CodeforcesError khi HTTP 500.
+Hoàn thiện app/cf_client.py: _get (rate limit theo settings.codeforces_min_interval_seconds,
+dùng time.monotonic), user_info, user_rating, user_submissions, problemset
+(gộp solvedCount từ problemStatistics vào từng problem).
+Viết tests/test_cf_client.py dùng httpx.MockTransport, không gọi mạng thật:
+status OK trả về result; status FAILED ném CodeforcesError; handle không tồn tại ném HandleNotFound;
+HTTP 500 ném CodeforcesError; problemset gộp đúng solvedCount.
 Giải thích MockTransport hoạt động thế nào.
 ```
 
-**Kiểm tra:** `python -m pytest -q tests/test_cf_client.py` xanh. Thử nhanh trong terminal:
+**Kiểm tra:** `python -m pytest -q tests/test_cf_client.py` xanh, rồi thử thật:
 ```bash
-python -c "from app.cf_client import CodeforcesClient; print(CodeforcesClient().user_info('tourist')['rating'])"
+python -c "from app.cf_client import CodeforcesClient as C; c=C(); print(c.user_info('tourist')['rating'], len(c.user_rating('tourist')))"
 ```
 
 **Prompt kiểm tra hiểu bài:**
 ```
-Hỏi mình: nếu 20 người bấm đăng ký cùng lúc thì rate limit của mình còn đúng không?
+Hỏi mình: nếu 20 người bấm Analyse cùng lúc thì rate limit của mình còn đúng không?
 Chờ mình trả lời, rồi giải thích vấn đề và cách sửa (lock, hàng đợi).
 ```
 
@@ -175,99 +196,108 @@ Chờ mình trả lời, rồi giải thích vấn đề và cách sửa (lock, 
 
 ---
 
-## Bước 3: Logic lõi (`app/stats.py`): NÊN TỰ LÀM
+## Bước 3: Phân tích phần A: tổng quan, độ khó, chủ đề (TỰ LÀM)
 
-**Mục tiêu:** cả 6 test trong `tests/test_stats.py` đều xanh. Đây là phần thuật toán, gần với CP nhất, và là phần phỏng vấn hỏi nhiều nhất.
+**Mục tiêu:** viết trong `app/analysis.py`, theo thứ tự:
+`rank_info` → `solved_problems` → `rating_trend` → `difficulty_profile` → `comfort_rating` → `target_range` → `tag_stats`.
 
-**Cách làm:** viết từng hàm theo thứ tự `solved_problems` → `tag_stats` → `weakest_tags` → `recommend`. Sau mỗi hàm chạy:
+Đọc kỹ docstring của từng hàm: nó là đề bài. Sau mỗi hàm, chạy đúng test của hàm đó:
 ```bash
-python -m pytest -q tests/test_stats.py
+python -m pytest -q tests/test_analysis.py -k rank_info
+python -m pytest -q tests/test_analysis.py -k difficulty
 ```
+
+Coi mỗi hàm như một bài CP: đọc đề, nghĩ, code, chạy test. Bài khó nhất là `tag_stats` (phải tìm lần nộp **sớm nhất** của mỗi bài để tính `first_try_rate`; API trả submissions mới nhất trước).
 
 **Prompt khi bí:**
 ```
-Mình đang viết hàm <tên hàm> trong app/stats.py. Đây là code hiện tại của mình:
+Mình đang viết hàm <tên hàm> trong app/analysis.py. Code hiện tại:
 <dán code>
-Test đang báo lỗi:
+Test báo lỗi:
 <dán lỗi>
 Chỉ cho mình gợi ý về chỗ sai, đừng sửa hộ.
 ```
 
+**Commit:** `Implement overview, difficulty and topic analysis`
+
+---
+
+## Bước 4: Phân tích phần B: chủ đề yếu, thói quen, gợi ý bài (TỰ LÀM)
+
+**Mục tiêu:** `tag_importance` → `weak_topics` → `verdict_breakdown` → `contest_level` → `upsolve_list` → `recommend`. Xong bước này, `python -m pytest -q tests/test_analysis.py` phải xanh toàn bộ.
+
+**Gợi ý tư duy:**
+- `weak_topics` dùng lại `tag_importance` và `solved_problems`, đừng viết lại.
+- `contest_level` chỉ xét submission có `participantType == "CONTESTANT"`; mẫu số là số contest đã tham gia, không phải số bài.
+- `recommend` sắp xếp theo 4 tiêu chí: dùng một tuple làm key.
+
 **Prompt review sau khi xanh hết:**
 ```
-Đây là app/stats.py mình vừa viết, test đã xanh hết:
+Đây là app/analysis.py mình vừa viết, test đã xanh hết:
 <dán code>
-Review như một senior engineer: độ phức tạp, tên biến, trường hợp biên
-(problem không có rating, không có tags, danh sách rỗng), và code đã đủ sạch cho phỏng vấn chưa.
+Review như một senior engineer: độ phức tạp từng hàm, tên biến, code lặp lại,
+trường hợp biên chưa được test. Code đã đủ sạch cho phỏng vấn chưa?
+Đừng viết lại hộ, chỉ liệt kê vấn đề theo mức độ quan trọng.
 ```
 
 **Prompt kiểm tra hiểu bài:**
 ```
-Hỏi mình: độ phức tạp của tag_stats là bao nhiêu? Định nghĩa "tag yếu" của mình
-có điểm yếu gì? Đề xuất một định nghĩa tốt hơn và để mình phản biện.
+Đóng vai interviewer. Hỏi mình về công thức weak topic score = importance / (1 + solved_in_range):
+vì sao hợp lý, điểm yếu là gì, và đề xuất cách tốt hơn. Sau đó hỏi độ phức tạp của weak_topics
+và recommend khi có 10.000 bài và 5.000 submissions. Từng câu một.
 ```
 
-**Commit:** `Implement tag statistics and recommendations`
+**Commit:** `Implement weak topics, habits and recommendations`
 
 ---
 
-## Bước 4: Đồng bộ dữ liệu user (`POST /users/{handle}`)
-
-**Mục tiêu:** nhập handle, server kéo dữ liệu từ Codeforces và lưu vào database.
+## Bước 5: Đồng bộ dữ liệu (`POST /api/users/{handle}/sync`)
 
 **Prompt:**
 ```
-Implement route register_user trong app/routes/users.py.
-Tách phần đồng bộ ra file mới app/services/sync.py với hàm sync_user(session, client, handle),
-để route chỉ gọi hàm đó.
-Yêu cầu:
-- 404 nếu Codeforces không biết handle.
-- Tạo hoặc cập nhật User (rating, max_rating, last_synced_at).
-- Lưu các bài đã giải vào bảng solves, không tạo bản ghi trùng khi đồng bộ lại.
-- Tạo CodeforcesClient qua một dependency get_cf_client() để sau này test có thể thay bằng bản giả.
-Giải thích vì sao tách service khỏi route, và "upsert" là gì.
+Implement route sync_user trong app/routes/report.py.
+Tạo app/services/sync.py với hàm sync_user(session, client, handle):
+- gọi user_info, user_rating, user_submissions;
+- tạo hoặc cập nhật User (rating, max_rating, rank, last_synced_at);
+- lưu submissions và rating history theo thiết kế ở Bước 1, thay dữ liệu cũ;
+- HandleNotFound → 404.
+Tạo dependency get_cf_client() để sau này test có thể thay bằng client giả.
+Giải thích vì sao tách service khỏi route, và cách đảm bảo không lưu trùng dữ liệu.
 ```
 
-**Kiểm tra:** trên `/docs`, gọi `POST /api/users/<handle của bạn>` hai lần liên tiếp. Lần hai không lỗi, không tạo dữ liệu trùng.
+**Kiểm tra:** trên `/docs`, gọi `POST /api/users/<handle của bạn>/sync` hai lần. Lần hai không lỗi, dữ liệu không bị nhân đôi (xem bằng SQLite Viewer). Thử handle không tồn tại: phải ra 404.
 
-**Commit:** `Sync user submissions from Codeforces`
+**Commit:** `Sync user data from Codeforces`
 
 ---
 
-## Bước 5: Thống kê, gợi ý bài và cache
+## Bước 6: Báo cáo (`GET /api/users/{handle}/report`)
 
-**Prompt:**
+**6a. Điền tài liệu học:** mở `app/resources.py`, thêm link học cho khoảng 10 tag hay gặp ở mức rating của bạn (dp, graphs, greedy, math, number theory, strings, trees, sortings, constructive algorithms, two pointers). Tự mở từng link để chắc nó tồn tại. Viết lại `VERDICT_ADVICE` bằng lời của bạn.
+
+**6b. Prompt:**
 ```
-Implement 2 route get_stats và get_recommendations trong app/routes/users.py,
-dùng các hàm trong app/stats.py.
-- Trả JSON gọn bằng Pydantic response model (tạo app/schemas.py).
-- Danh sách toàn bộ problem của Codeforces rất lớn: cache trong bộ nhớ,
-  tải lại tối đa mỗi 24 giờ. Viết cache thành một class nhỏ có thể test được
-  (truyền hàm lấy thời gian vào để test không phải chờ thật).
-- 404 nếu user chưa đăng ký.
-Viết test cho class cache.
+Implement get_report trong app/routes/report.py, logic đặt trong app/services/report.py.
+- Đọc dữ liệu đã lưu của user (404 nếu chưa sync).
+- Lấy danh sách problem qua một class ProblemCache: cache trong bộ nhớ, hết hạn sau 24 giờ,
+  nhận hàm lấy thời gian qua constructor để test được. Viết test cho ProblemCache.
+- Gọi các hàm trong app/analysis.py và trả JSON gồm các phần: overview, rating_trend
+  (kèm lịch sử để vẽ biểu đồ), difficulty, topics, weak_topics (kèm RESOURCES),
+  habits (verdict kèm VERDICT_ADVICE cho verdict chiếm trên 15% số lần nộp sai), upsolve (10 bài),
+  recommendations (10 bài, kèm link codeforces.com/problemset/problem/<contestId>/<index>).
+- Định nghĩa JSON bằng Pydantic model trong app/schemas.py.
+Không viết lại logic đã có trong analysis.py.
 ```
+
+**Kiểm tra:** gọi report cho handle của bạn trên `/docs`. **Đọc kỹ báo cáo:** nó có đúng với cảm nhận của bạn về điểm mạnh/yếu của chính mình không? Nếu không, ghi lại lý do; đó là chất liệu tốt cho phần "Design notes" và phỏng vấn.
 
 **Prompt kiểm tra hiểu bài:**
 ```
-Hỏi mình: cache này có vấn đề gì nếu chạy 3 server cùng lúc? Khi nào nên dùng Redis?
+Hỏi mình: cache của mình có vấn đề gì nếu chạy 3 server cùng lúc? Khi nào nên dùng Redis?
+Lần đầu gọi report sau khi server khởi động thì mất bao lâu, vì sao, và có cách nào cải thiện?
 ```
 
-**Commit:** `Add stats and recommendation endpoints with problem cache`
-
----
-
-## Bước 6: Bảng xếp hạng
-
-**Prompt:**
-```
-Implement get_leaderboard: tất cả user, sắp xếp theo số bài giải trong 7 ngày gần nhất,
-hòa thì theo rating. Viết bằng một câu query SQLAlchemy (GROUP BY + COUNT + LEFT JOIN),
-không lặp trong Python. Giải thích câu SQL tương đương được sinh ra,
-và vì sao phải LEFT JOIN thay vì JOIN.
-```
-
-**Commit:** `Add weekly leaderboard`
+**Commit:** `Add analysis report endpoint with problem cache`
 
 ---
 
@@ -275,47 +305,51 @@ và vì sao phải LEFT JOIN thay vì JOIN.
 
 **Prompt:**
 ```
-Viết tests/test_users_api.py dùng TestClient:
-- Dùng app.dependency_overrides để thay get_cf_client bằng client giả trả dữ liệu cố định,
-  và thay database bằng SQLite trong bộ nhớ (sqlite:// với StaticPool).
-- Test: đăng ký user thành công, handle không tồn tại trả 404,
-  đồng bộ 2 lần không trùng dữ liệu, stats đúng, leaderboard đúng thứ tự.
+Viết tests/test_report_api.py dùng TestClient:
+- Dùng app.dependency_overrides để thay get_cf_client bằng client giả trả dữ liệu cố định
+  (vài submissions, rating history, problemset nhỏ), và thay database bằng SQLite
+  trong bộ nhớ (sqlite:// với StaticPool).
+- Test: sync thành công; handle không tồn tại trả 404; sync 2 lần không trùng dữ liệu;
+  report trước khi sync trả 404; report sau khi sync có đủ các phần và số liệu đúng.
 Giải thích dependency_overrides và vì sao test không được gọi mạng thật.
 ```
 
-**Kiểm tra:** `python -m pytest -q` xanh toàn bộ. Push lên GitHub và xem tab **Actions**: CI phải xanh.
+**Kiểm tra:** `python -m pytest -q` xanh toàn bộ. Push lên GitHub, xem tab **Actions**: CI phải xanh.
 
 **Commit:** `Add API tests`
 
 ---
 
-## Bước 8: Frontend (`frontend/`)
+## Bước 8: Frontend trang báo cáo
 
 ```bash
 cd frontend
 npm install
+npm install recharts
 npm run dev          # http://localhost:5173 (backend phải đang chạy)
 ```
 
 **Prompt:**
 ```
-Mở frontend/src/App.jsx. Mình muốn giao diện gồm:
-1) Ô nhập handle + nút Analyse (đã có).
-2) Bảng thống kê theo tag, có thanh ngang thể hiện tỉ lệ solved/attempted.
-3) Danh sách bài gợi ý, mỗi bài là link tới codeforces.com/problemset/problem/<contestId>/<index>.
-4) Trang Leaderboard (chuyển trang bằng state đơn giản, chưa cần thư viện router).
-5) Trạng thái loading và lỗi rõ ràng.
-Tách thành component nhỏ trong src/components/. CSS đơn giản, gọn, không thêm thư viện UI.
+Mở frontend/src/App.jsx. Thay phần in JSON bằng trang báo cáo, mỗi phần một component
+trong src/components/:
+1) OverviewCard: rank (tô màu theo rank của Codeforces), rating, "còn X điểm lên <rank tiếp>".
+2) RatingChart: biểu đồ đường lịch sử rating (Recharts LineChart).
+3) DifficultyChart: biểu đồ cột số bài giải theo rating, tô nổi vùng target range.
+4) TopicTable: bảng chủ đề (solved, attempted, first-try %, bài khó nhất), sắp xếp được.
+5) WeakTopics: mỗi chủ đề yếu kèm lý do ("xuất hiện 35% ở mức 1400–1600, bạn mới giải 1 bài") và link học.
+6) Habits: tỉ lệ các loại lỗi kèm lời khuyên; "trong contest bạn thường giải tới bài C".
+7) UpsolveList và Recommendations: danh sách bài, mỗi bài là link mở Codeforces.
+Có trạng thái loading và lỗi. CSS gọn, đọc tốt trên điện thoại, không thêm thư viện UI.
 Giải thích luồng dữ liệu: state → fetch → render.
 ```
 
 **Prompt kiểm tra hiểu bài:**
 ```
-Hỏi mình: useState là gì, vì sao gọi fetch trong hàm xử lý sự kiện thay vì trực tiếp trong
-thân component, và Vite proxy giải quyết vấn đề gì khi phát triển.
+Hỏi mình: useState là gì, vì sao chia nhiều component nhỏ, và Vite proxy giải quyết vấn đề gì.
 ```
 
-**Commit:** `Build dashboard UI`
+**Commit:** `Build analysis report UI`
 
 ---
 
@@ -325,9 +359,11 @@ thân component, và Vite proxy giải quyết vấn đề gì khi phát triển
 docker compose up --build
 ```
 
+Nếu dùng cột JSON ở Bước 1, kiểm tra nó chạy được trên cả SQLite và PostgreSQL.
+
 **Prompt khi gặp lỗi:**
 ```
-Mình chạy docker compose up --build và gặp lỗi sau:
+Mình chạy docker compose up --build và gặp lỗi:
 <dán lỗi>
 Giải thích nguyên nhân và cách sửa. Đây là docker-compose.yml và backend/Dockerfile: <dán>
 ```
@@ -335,7 +371,7 @@ Giải thích nguyên nhân và cách sửa. Đây là docker-compose.yml và ba
 **Prompt kiểm tra hiểu bài:**
 ```
 Hỏi mình: image khác container thế nào? Vì sao backend gọi database bằng host "db"
-chứ không phải "localhost"? Dữ liệu PostgreSQL được giữ lại ở đâu khi tắt container?
+chứ không phải "localhost"? Dữ liệu PostgreSQL được giữ ở đâu khi tắt container?
 ```
 
 **Commit:** `Run with PostgreSQL via Docker Compose`
@@ -349,11 +385,11 @@ chứ không phải "localhost"? Dữ liệu PostgreSQL được giữ lại ở
 Mình muốn deploy CF Trainer miễn phí hoặc gần như miễn phí:
 backend FastAPI + PostgreSQL, frontend React tĩnh.
 Hãy tìm và so sánh 3 lựa chọn hiện tại (gói miễn phí, giới hạn, có ngủ khi không dùng không),
-khuyên một lựa chọn, rồi hướng dẫn từng bước. Nhắc mình những biến môi trường cần đặt
+khuyên một lựa chọn, rồi hướng dẫn từng bước. Nhắc mình các biến môi trường cần đặt
 (DATABASE_URL, CORS_ORIGINS) và cách để frontend gọi đúng địa chỉ backend khi đã deploy.
 ```
 
-**Kiểm tra:** mở link từ điện thoại, nhập handle của bạn, mọi thứ chạy đúng.
+**Kiểm tra:** mở link trên điện thoại, nhập handle của bạn, báo cáo hiện đầy đủ.
 
 **Commit:** `Configure production deployment`
 
@@ -361,15 +397,19 @@ khuyên một lựa chọn, rồi hướng dẫn từng bước. Nhắc mình nh
 
 ## Bước 11: Người dùng thật
 
-- Đăng link lên Discord/nhóm UTS ProgSoc và đội ICPC. Gợi ý tin nhắn:
+Với hướng phân tích cá nhân, cách thu hút người dùng tốt nhất là **cho mỗi người xem báo cáo của chính họ**.
+
+- Đăng lên Discord/nhóm UTS ProgSoc và đội ICPC:
 
 ```
 Prompt: Viết giúp mình một tin nhắn ngắn, thân thiện bằng tiếng Anh để đăng lên Discord
-của hội lập trình trường, giới thiệu CF Trainer: nhập Codeforces handle để xem tag yếu
-và nhận gợi ý bài. Nhờ mọi người dùng thử và góp ý. Link: <link>
+của hội lập trình trường: giới thiệu CF Trainer, nhập Codeforces handle để xem mình yếu chủ đề nào
+và nên luyện bài nào để lên rank tiếp theo. Nhờ mọi người dùng thử và góp ý xem báo cáo
+có đúng với họ không. Link: <link>
 ```
 
-- Ghi lại số người dùng (đếm số dòng trong bảng `users`) và các lỗi họ báo. Sửa lỗi nghiêm trọng nhất.
+- Hỏi trực tiếp vài người: "Báo cáo có đúng với cảm nhận của bạn không? Gợi ý bài có hữu ích không?"
+- Đếm số handle trong bảng `users`, ghi lại góp ý, sửa vấn đề lớn nhất.
 
 ---
 
@@ -377,25 +417,27 @@ và nhận gợi ý bài. Nhờ mọi người dùng thử và góp ý. Link: <l
 
 **Prompt README:**
 ```
-Đây là README.md hiện tại và mô tả những gì mình đã làm:
+Đây là README.md hiện tại và những gì mình đã làm:
 <dán>
-Giúp mình viết phần "Design notes" (schema, rate limit, cache, định nghĩa tag yếu).
-Viết theo ý của mình, ngắn gọn; chỗ nào bạn không chắc thì hỏi mình chứ đừng tự bịa.
-Thêm link deploy và số người dùng thật: <số>.
+Giúp mình viết phần "Design notes": cách lưu dữ liệu và lý do, cách xử lý rate limit,
+cache danh sách bài, và giới hạn của công thức weak topic. Viết theo ý của mình, ngắn gọn;
+chỗ nào bạn không chắc thì hỏi mình chứ đừng tự bịa. Thêm link deploy, ảnh chụp màn hình
+và số người dùng thật: <số>.
 ```
 
 **Prompt dòng CV:**
 ```
-Viết 2 gạch đầu dòng CV (tiếng Anh, bắt đầu bằng động từ mạnh, có số liệu) cho CF Trainer.
-Số liệu thật: <số người dùng>, <số bài trong cache>, <thời gian phản hồi nếu đo được>.
-Không được phóng đại.
+Viết 2 gạch đầu dòng CV (tiếng Anh, bắt đầu bằng động từ mạnh, có số liệu thật) cho CF Trainer:
+một dòng về sản phẩm và tác động (số người dùng: <số>), một dòng về kỹ thuật
+(FastAPI, PostgreSQL, caching, rate limiting, test). Không được phóng đại.
 ```
 
 **Prompt luyện phỏng vấn (làm ít nhất 2 lần):**
 ```
 Đóng vai interviewer của TikTok. Bắt đầu bằng "Tell me about a project you're proud of".
-Mình trả lời bằng tiếng Anh. Sau đó hỏi follow-up sâu về thiết kế, scale, lỗi và trade-off,
-mỗi lần một câu. Cuối buổi nhận xét cả nội dung lẫn cách diễn đạt tiếng Anh.
+Mình trả lời bằng tiếng Anh. Sau đó hỏi follow-up sâu về thiết kế phân tích, độ chính xác
+của gợi ý, scale, lỗi và trade-off, mỗi lần một câu. Cuối buổi nhận xét cả nội dung lẫn
+cách diễn đạt tiếng Anh.
 ```
 
 ---
@@ -411,5 +453,9 @@ File liên quan:
 <dán code>
 Giải thích nguyên nhân trước, rồi mới đưa cách sửa.
 ```
+
+## Sau khi nộp đơn: mở rộng
+
+Xem cuối `LEARNING.md`: AI coach viết nhận xét và kế hoạch tuần, theo dõi tiến bộ theo tuần, đo tốc độ giải trong contest.
 
 **Quy tắc vàng:** dòng nào Claude viết, bạn phải đọc và tự giải thích lại được trước khi commit.

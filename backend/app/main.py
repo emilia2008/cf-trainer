@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import models  # noqa: F401  (registers tables with Base)
 from app.config import settings
 from app.db import Base, engine
-from app.routes import users
+from app.routes import report
 
 
 @asynccontextmanager
@@ -25,7 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(users.router, prefix="/api")
+app.include_router(report.router, prefix="/api")
 
 
 @app.get("/api/health")
