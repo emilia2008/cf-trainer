@@ -185,6 +185,7 @@ def test_report_numbers_are_correct(api):
         {"rating": 1600, "solved": 0, "attempted": 1},
     ]
     assert difficulty["comfort_rating"] is None
+    assert difficulty["comfort_min_solved"] == 21
     assert difficulty["target_range"] == {"lo": 1400, "hi": 1600}
     assert difficulty["problems_in_range"] == 5
 
@@ -288,3 +289,23 @@ def test_openapi_documents_both_endpoints(api):
     paths = api.get("/openapi.json").json()["paths"]
     assert "post" in paths["/api/users/{handle}/sync"]
     assert "get" in paths["/api/users/{handle}/report"]
+
+
+@pytest.mark.parametrize("solves_at_1500, expected_range", [
+    (20, {"lo": 1400, "hi": 1600}),  # not comfortable yet: the target follows the rating (1350)
+    (21, {"lo": 1600, "hi": 1800}),  # more than 20 solves at 1500: the target moves up
+])
+def test_target_moves_up_only_after_more_than_20_solves(api, fake_cf, solves_at_1500, expected_range):
+    from conftest import make_submission
+
+    subs = [make_submission(i, 100 + i, "A", "OK", ["dp"], 1500, t=i) for i in range(solves_at_1500)]
+    fake_cf.users["grinder"] = {
+        "info": {"handle": "grinder", "rating": 1350, "maxRating": 1350, "rank": "pupil"},
+        "rating": [],
+        "submissions": subs[::-1],
+    }
+    api.post("/api/users/grinder/sync")
+    difficulty = api.get("/api/users/grinder/report").json()["difficulty"]
+
+    assert difficulty["target_range"] == expected_range
+    assert difficulty["comfort_rating"] == (1500 if solves_at_1500 > 20 else None)

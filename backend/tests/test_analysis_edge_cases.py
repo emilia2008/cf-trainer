@@ -3,8 +3,10 @@
 import pytest
 
 from app.analysis import (
+    COMFORT_MIN_SOLVED,
     BucketStat,
     RankInfo,
+    comfort_rating,
     contest_level,
     difficulty_profile,
     rank_info,
@@ -137,3 +139,10 @@ def test_recommend_respects_limit_and_inclusive_bounds():
     ]
     assert [p["index"] for p in recommend(problems, set(), ["dp"], 1400, 1600)] == ["A", "B"]
     assert len(recommend(problems, set(), ["dp"], 1400, 1600, limit=1)) == 1
+
+
+def test_comfort_needs_more_than_20_solves_by_default():
+    profile = [BucketStat(1400, 21, 25), BucketStat(1500, 20, 30), BucketStat(1600, 3, 3)]
+    assert COMFORT_MIN_SOLVED == 21
+    assert comfort_rating(profile) == 1400  # 20 solves at 1500 are not enough
+    assert comfort_rating([BucketStat(1500, 20, 20)]) is None

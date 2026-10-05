@@ -48,6 +48,10 @@ RANKS: list[tuple[int, str]] = [
 # Tags that are not real topics and should be ignored in topic analysis.
 IGNORED_TAGS = {"*special"}
 
+# A rating only counts as comfortable after MORE than 20 solves at it, so a handful of hard
+# problems solved in practice cannot push the target range above the user's real level.
+COMFORT_MIN_SOLVED = 21
+
 # Verdicts of submissions that are still being judged. They say nothing yet, so the
 # per-problem analysis skips them.
 PENDING_VERDICTS = {None, "TESTING"}
@@ -228,7 +232,7 @@ def difficulty_profile(submissions: list[dict], bucket: int = 100) -> list[Bucke
     return [BucketStat(r, solved[r], attempted[r]) for r in sorted(attempted)]
 
 
-def comfort_rating(profile: list[BucketStat], min_solved: int = 3) -> int | None:
+def comfort_rating(profile: list[BucketStat], min_solved: int = COMFORT_MIN_SOLVED) -> int | None:
     """Highest bucket rating where the user solved at least `min_solved` problems."""
     return max((stat.rating for stat in profile if stat.solved >= min_solved), default=None)
 

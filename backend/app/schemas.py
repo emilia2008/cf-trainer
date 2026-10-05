@@ -79,6 +79,7 @@ class TargetRange(BaseModel):
 class DifficultySection(BaseModel):
     buckets: list[Bucket]
     comfort_rating: int | None
+    comfort_min_solved: int  # solves needed at a rating for it to count as comfortable
     target_range: TargetRange
     problems_in_range: int  # problems on Codeforces rated inside the target range
 

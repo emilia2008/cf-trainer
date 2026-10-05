@@ -24,8 +24,8 @@ nộp bài, danh sách upsolve, và 10 bài gợi ý cụ thể.
 - **Backend:** FastAPI + SQLAlchemy 2 + Pydantic + httpx; SQLite khi dev, PostgreSQL khi chạy Docker/production.
 - **Frontend:** React 19 + Vite + Recharts, CSS thuần, có dark mode và responsive.
 - **Hạ tầng:** Docker Compose (PostgreSQL + API + nginx), GitHub Actions với 4 job.
-- **Test:** 111 test backend (24 đặc tả trong `test_analysis.py` + 15 edge case, 17 client, 7 cache,
-  3 model, 18 API, 22 resources, 5 app/config). Không test nào gọi Codeforces thật.
+- **Test:** 114 test backend (24 đặc tả trong `test_analysis.py` + 16 edge case, 17 client, 7 cache,
+  3 model, 20 API, 22 resources, 5 app/config). Không test nào gọi Codeforces thật.
 - **CI:** pytest trên SQLite, pytest trên PostgreSQL (service container), `npm ci && npm run build`,
   và smoke test toàn bộ stack Docker Compose. Cả 4 job đều xanh.
 - **Số đo thật:** sync tourist (5.491 submission, 308 contest) khoảng 8 giây (bị chặn bởi rate limit
@@ -298,9 +298,9 @@ nên sync lỗi giữa chừng không làm hỏng dữ liệu cũ.
 - **Quan sát về định nghĩa (không sửa vì đề bài bắt buộc):**
   - tourist: comfort 3500 → target 3600–3800, nhưng bài khó nhất trên Codeforces là 3500, nên không có
     tag yếu và gợi ý; giao diện giải thích lý do.
-  - DmitriyH: rating 1709 nhưng đã giải ≥ 3 bài 2500 (luyện tập/upsolve), nên comfort = 2500 và
-    target = 2600–2800, quá cao so với rating thi đấu. Đây là điểm yếu của định nghĩa `comfort_rating`
-    (xem phần "Điểm yếu và cách cải thiện").
+  - DmitriyH: rating 1709 nhưng đã giải ≥ 3 bài 2500 (luyện tập/upsolve), nên với định nghĩa ban đầu
+    comfort = 2500 và target = 2600–2800, quá cao so với rating thi đấu. Sau đó bạn yêu cầu đổi ngưỡng
+    (xem mục 14).
   - `live_contests` (405) của tourist lớn hơn số contest có rating (308), vì có cả contest không tính
     rating mà vẫn thi trực tiếp.
 
@@ -354,6 +354,21 @@ nên sync lỗi giữa chừng không làm hỏng dữ liệu cũ.
   01/08/2026 workspace Hobby chỉ còn 5 GB bandwidth/tháng; PostgreSQL free của Render hết hạn sau 30 ngày,
   nên chọn Neon (0,5 GB, không hết hạn). Mình không tạo tài khoản dịch vụ nào.
 
+### 14. Đổi ngưỡng comfort rating: hơn 20 bài (theo yêu cầu của bạn)
+
+- **Yêu cầu:** phải giải *hơn 20 bài* ở một mức rating thì mức đó mới được tính là "thoải mái" và
+  mới đẩy target lên cao hơn. Trước đây chỉ cần 3 bài.
+- **Cách làm:** thêm hằng số `COMFORT_MIN_SOLVED = 21` trong `analysis.py` và dùng làm giá trị mặc
+  định của `comfort_rating(profile, min_solved=...)`. Tên hàm và tham số giữ nguyên; `test_analysis.py`
+  vẫn truyền `min_solved=3`/`6` tường minh nên không phải sửa và vẫn xanh.
+- **"Hơn 20" hiểu theo nghĩa đen là ≥ 21.** Muốn "từ 20 bài trở lên" thì chỉ cần đổi hằng số thành 20.
+- API trả thêm `difficulty.comfort_min_solved`, để giao diện ghi "highest rating with 21+ solves" theo
+  đúng con số trong backend (không ghi cứng ở frontend).
+- **Ảnh hưởng trên dữ liệu thật:** DmitriyH (rating 1709) từ target 2600–2800 xuống 2300–2500 (giải 25 bài
+  ở mức 2200); tourist không đổi (61 bài ở mức 3500); MikeMirzayanov không đổi (target theo mức sàn 800).
+- Test mới: biên 20 so với 21 bài ở cấp hàm, và test API cho thấy target chỉ tăng lên 1600–1800 khi có
+  21 bài ở mức 1500 (20 bài thì vẫn theo rating 1350, tức 1400–1600).
+
 ---
 
 ## 4. Độ phức tạp các hàm trong `analysis.py`
@@ -397,9 +412,11 @@ Thời gian thật nằm ở mạng (rate limit của Codeforces), không nằm 
 
 **Về phân tích (định nghĩa bắt buộc nên mình giữ nguyên, nhưng phải biết nói về chúng):**
 
-1. **`comfort_rating` nhạy với ngoại lệ.** Chỉ cần giải 3 bài ở một mức là được tính. Ví dụ thật: DmitriyH
-   có rating 1709 nhưng comfort 2500, nên target thành 2600–2800. *Cải thiện:* yêu cầu tỉ lệ AC ở mức đó
-   ≥ 50%, chỉ xét 6–12 tháng gần đây, hoặc chặn `base ≤ rating + 300`.
+1. **`comfort_rating` nhạy với ngoại lệ.** Với ngưỡng ban đầu (3 bài), DmitriyH (rating 1709) có comfort
+   2500 và target 2600–2800. Đã giảm bớt bằng cách nâng ngưỡng lên hơn 20 bài (mục 14), nhưng target vẫn có
+   thể cao hơn rating thi đấu (DmitriyH: 2300–2500), và ngưỡng cố định không phân biệt người mới với người
+   đã giải hàng nghìn bài. *Cải thiện tiếp:* yêu cầu thêm tỉ lệ AC ở mức đó ≥ 50%, chỉ xét 6–12 tháng gần
+   đây, hoặc chặn `base ≤ rating + 300`.
 2. **Target vượt thang rating của bài.** Từ khoảng 3300 trở lên, range (ví dụ 3600–3800 của tourist)
    không có bài nào, nên không có tag yếu hay gợi ý. *Cải thiện:* kẹp range vào [800, rating cao nhất của bài].
 3. **Weak score bỏ qua lần thử thất bại và thời gian.** Một tag thử 10 lần không giải được có điểm bằng tag
@@ -442,7 +459,7 @@ Thời gian thật nằm ở mạng (rate limit của Codeforces), không nằm 
 - Nhận xét nhỏ, không phải lỗi: test của `rating_trend` chỉ có trường hợp có tụt rating. Theo docstring,
   `worst_drop` là delta nhỏ nhất, nên với lịch sử toàn tăng nó là số **dương**. Đúng đặc tả, nhưng tên
   dễ gây hiểu nhầm, nên giao diện hiện "No drops yet" khi `worst_drop ≥ 0`.
-- `test_analysis_edge_cases.py` (15 test) phủ những chỗ đặc tả chưa nói: biên rank, thứ tự đầu vào,
+- `test_analysis_edge_cases.py` (16 test) phủ những chỗ đặc tả chưa nói (kể cả ngưỡng hơn 20 bài mới): biên rank, thứ tự đầu vào,
   hòa trong cùng một giây, submission đang chấm, hòa điểm float, hai đầu của range, `*special` trong gợi ý.
 
 ---
@@ -491,8 +508,8 @@ nhất; hai lần nộp cùng giây thì so theo `id`. Submission đang chấm (
 lần thử đầu bị sai.
 
 **9. Gợi ý bài có thể sai ở đâu?**
-Rating bài là ước lượng; tag thiếu hoặc sai; bài trùng Div. 1/Div. 2; comfort bị đẩy cao bởi vài bài
-khó giải lúc luyện tập; user có thể đã giải bài đó ở tài khoản khác. Cách kiểm chứng: hỏi người dùng thật
+Rating bài là ước lượng; tag thiếu hoặc sai; bài trùng Div. 1/Div. 2; target có thể cao hơn rating thi đấu
+(ngưỡng hơn 20 bài đã giảm bớt việc vài bài khó giải lúc luyện tập đẩy target lên); user có thể đã giải bài đó ở tài khoản khác. Cách kiểm chứng: hỏi người dùng thật
 xem gợi ý có hữu ích không, rồi đo tỉ lệ họ giải các bài được gợi ý.
 
 **10. Vì sao dùng `solvedCount` làm tiêu chí phụ?**

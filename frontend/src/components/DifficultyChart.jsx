@@ -83,7 +83,7 @@ export default function DifficultyChart({ difficulty }) {
         <Tile
           label="Comfort level"
           value={comfort == null ? "Not yet" : formatNumber(comfort)}
-          note="highest rating with 3+ solves"
+          note={`highest rating with ${difficulty.comfort_min_solved}+ solves`}
         />
         <Tile
           label="Target range"

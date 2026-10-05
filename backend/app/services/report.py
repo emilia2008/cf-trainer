@@ -199,6 +199,7 @@ def build_report(user: User, problems: list[dict]) -> Report:
     difficulty = DifficultySection(
         buckets=[Bucket(rating=b.rating, solved=b.solved, attempted=b.attempted) for b in profile],
         comfort_rating=comfort,
+        comfort_min_solved=analysis.COMFORT_MIN_SOLVED,
         target_range=TargetRange(lo=lo, hi=hi),
         problems_in_range=sum(
             1 for p in problems if p.get("rating") is not None and lo <= p["rating"] <= hi

@@ -31,7 +31,9 @@ database, no network), so each rule is unit-tested on its own.
 - **Rank.** Codeforces thresholds: Newbie 0, Pupil 1200, Specialist 1400, Expert 1600, Candidate
   Master 1900, Master 2100, International Master 2300, Grandmaster 2400, International Grandmaster
   2600, Legendary Grandmaster 3000. Unrated counts as 0.
-- **Comfort rating.** The highest problem rating at which you have solved at least 3 problems.
+- **Comfort rating.** The highest problem rating at which you have solved more than 20 problems
+  (`COMFORT_MIN_SOLVED = 21`). A few hard problems solved in practice do not count as being
+  comfortable at that level, so they cannot push the target range up on their own.
 - **Target range.** `base = max(rating, comfort, 800)` rounded down to a multiple of 100; the range
   is `base + 100` to `base + 300`.
 - **Weak topics.** For each tag, `importance` is the share of all Codeforces problems in the target
@@ -170,9 +172,9 @@ but:
 - Tags are not independent (`dp` and `math` often appear together), so the top 5 can overlap.
 - Codeforces tags and ratings are imperfect: tags can be incomplete and new problems have no
   rating, so they are invisible to the analysis.
-- The target range follows the definition strictly. A user who has solved a few hard problems in
-  practice gets a high comfort rating, so the target can sit far above their contest rating, and
-  above about 3300 there are no rated problems in the range at all, so there are no weak topics.
+- The target range can still sit above a user's contest rating: someone who has solved more than
+  20 problems at 2200 while rated 1700 practises at 2300–2500. Above about 3300 there are no rated
+  problems in the range at all, so there are no weak topics.
 - A Div. 1 problem and its Div. 2 copy have different ids, so one can be recommended after the
   other was solved.
 
