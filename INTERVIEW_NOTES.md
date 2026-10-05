@@ -76,3 +76,25 @@ câu hỏi phỏng vấn) được hoàn thiện ở bước tài liệu cuối 
 - **`get_cf_client()` với `lru_cache`:** một client mỗi process (dùng chung connection pool và
   limiter); test thay nó bằng client giả qua `app.dependency_overrides`.
 - `problemset()` chỉ gán `solvedCount` khi có thống kê; nếu thiếu thì để trống, và `recommend` coi là 0.
+
+### 4. analysis.py
+
+- Giữ nguyên tên, chữ ký và docstring của mọi hàm; `test_analysis.py` không bị sửa và xanh toàn bộ
+  (24/24). Mình không thấy test nào sai đặc tả.
+- **Helper `_problem_histories`:** gom submissions theo bài (một lượt duyệt), lưu lần nộp sớm nhất
+  và cờ đã giải. `difficulty_profile`, `tag_stats`, `verdict_breakdown` dùng chung, nên định nghĩa
+  "first try" nhất quán ở mọi nơi.
+- **Lần nộp sớm nhất** so theo `(creationTimeSeconds, id)`: không phụ thuộc thứ tự đầu vào (API trả
+  mới nhất trước), và hai lần nộp trong cùng một giây được phân xử bằng id (id tăng dần theo thời gian).
+- **Bỏ qua submission đang chấm** (`verdict` thiếu hoặc `TESTING`) ở mọi phân tích theo bài, không
+  chỉ ở `verdict_breakdown`. Một lần nộp chưa có kết quả không được coi là "lần thử đầu bị sai".
+- **`rank_info` dùng `bisect_right`** trên danh sách ngưỡng: O(log R), và đúng tại biên (1200 → Pupil).
+- **`weak_topics` làm tròn điểm tới 12 chữ số khi sắp xếp:** 0.6/3 = 0.19999999999999998 < 0.2 trên
+  float, nên hai điểm bằng nhau trên giấy sẽ không hòa và luật "hòa thì theo tên tag" bị phá.
+  Có test riêng chứng minh (test fail nếu bỏ làm tròn).
+- **`recommend` dùng `heapq.nsmallest(limit, ...)`:** O(P log limit) thay vì sắp xếp toàn bộ O(P log P);
+  kết quả giống hệt `sorted(...)[:limit]` (Python đảm bảo điều này trong tài liệu).
+- **`worst_drop` = delta nhỏ nhất**, đúng theo docstring (chỉ lịch sử rỗng mới trả `None`). Nếu user
+  chưa bao giờ tụt rating thì giá trị này dương; giao diện hiển thị "No drops yet" trong trường hợp đó.
+- `test_analysis_edge_cases.py` bổ sung 17 test cho biên rank, thứ tự đầu vào, submission đang chấm,
+  hòa điểm float, giới hạn bao gồm hai đầu của target range, tag `*special` trong gợi ý.

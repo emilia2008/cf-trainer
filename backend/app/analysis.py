@@ -1,7 +1,7 @@
 """Core analysis: pure functions, no database and no network. Easy to test.
 
-This is the heart of the project and what interviewers will ask about most.
-Implement the functions marked TODO until tests/test_analysis.py is all green.
+Every function takes the data exactly as the Codeforces API returns it, and problems are
+always counted once each (by problem_key), never once per submission.
 
 Data shapes from the Codeforces API (only the fields used here):
 
@@ -26,6 +26,9 @@ A problem (from problemset.problems, with "solvedCount" merged in by the client)
      "tags": ["greedy"], "solvedCount": 25000}
 """
 
+import heapq
+from bisect import bisect_right
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 
 # Codeforces ranks: (minimum rating, title). Stable, part of the rating system.
@@ -44,6 +47,10 @@ RANKS: list[tuple[int, str]] = [
 
 # Tags that are not real topics and should be ignored in topic analysis.
 IGNORED_TAGS = {"*special"}
+
+# Verdicts of submissions that are still being judged. They say nothing yet, so the
+# per-problem analysis skips them.
+PENDING_VERDICTS = {None, "TESTING"}
 
 
 # ---- Result types ---------------------------------------------------------------
@@ -110,25 +117,97 @@ def real_tags(problem: dict) -> list[str]:
     return [t for t in problem.get("tags", []) if t not in IGNORED_TAGS]
 
 
+# ---- Internal helpers -----------------------------------------------------------
+
+@dataclass
+class _ProblemHistory:
+    """Everything the user did on one problem."""
+
+    problem: dict
+    solved: bool = False
+    first: dict | None = None  # earliest judged submission
+
+    @property
+    def first_try(self) -> bool:
+        return self.first is not None and self.first.get("verdict") == "OK"
+
+
+def _is_judged(submission: dict) -> bool:
+    return submission.get("verdict") not in PENDING_VERDICTS
+
+
+def _is_live(submission: dict) -> bool:
+    return submission.get("author", {}).get("participantType") == "CONTESTANT"
+
+
+def _submitted_order(submission: dict) -> tuple[int, int]:
+    # Submission ids increase over time, so they break ties within the same second.
+    return submission.get("creationTimeSeconds", 0), submission.get("id", 0)
+
+
+def _in_range(problem: dict, lo: int, hi: int) -> bool:
+    rating = problem.get("rating")
+    return rating is not None and lo <= rating <= hi
+
+
+def _problem_histories(submissions: list[dict]) -> dict[str, _ProblemHistory]:
+    """{problem_key: history} over judged submissions. One pass, in any input order."""
+    histories: dict[str, _ProblemHistory] = {}
+    for submission in submissions:
+        if not _is_judged(submission):
+            continue
+        problem = submission.get("problem", {})
+        key = problem_key(problem)
+        history = histories.get(key)
+        if history is None:
+            history = histories[key] = _ProblemHistory(problem)
+        if submission["verdict"] == "OK":
+            history.solved = True
+        if history.first is None or _submitted_order(submission) < _submitted_order(history.first):
+            history.first = submission
+    return histories
+
+
 # ---- Overview -------------------------------------------------------------------
+
+_RANK_THRESHOLDS = [threshold for threshold, _ in RANKS]
+
 
 def rank_info(rating: int | None) -> RankInfo:
     """Current rank and distance to the next one. Treat None (unrated) as 0."""
-    # TODO
-    raise NotImplementedError
+    value = rating or 0
+    i = max(bisect_right(_RANK_THRESHOLDS, value) - 1, 0)
+    title = RANKS[i][1]
+    if i + 1 == len(RANKS):
+        return RankInfo(title, None, None, None)
+    threshold, next_title = RANKS[i + 1]
+    return RankInfo(title, next_title, threshold, threshold - value)
 
 
 def solved_problems(submissions: list[dict]) -> dict[str, dict]:
     """{problem_key: problem} for every problem with at least one 'OK' verdict (counted once)."""
-    # TODO
-    raise NotImplementedError
+    solved: dict[str, dict] = {}
+    for submission in submissions:
+        if submission.get("verdict") == "OK":
+            problem = submission.get("problem", {})
+            solved.setdefault(problem_key(problem), problem)
+    return solved
 
 
 def rating_trend(history: list[dict], last_n: int = 5) -> RatingTrend:
     """Summary of the rating history (oldest first). Empty history: contests=0,
     current/max/best/worst None, recent_change 0."""
-    # TODO
-    raise NotImplementedError
+    if not history:
+        return RatingTrend(0, None, None, 0, None, None)
+    deltas = [change["newRating"] - change["oldRating"] for change in history]
+    return RatingTrend(
+        contests=len(history),
+        current=history[-1]["newRating"],
+        max_rating=max(change["newRating"] for change in history),
+        recent_change=sum(deltas[-last_n:]) if last_n > 0 else 0,
+        best_gain=max(deltas),
+        worst_drop=min(deltas),
+    )
 
 
 # ---- Difficulty -----------------------------------------------------------------
@@ -136,14 +215,22 @@ def rating_trend(history: list[dict], last_n: int = 5) -> RatingTrend:
 def difficulty_profile(submissions: list[dict], bucket: int = 100) -> list[BucketStat]:
     """Solved/attempted counts per rating bucket (rating // bucket * bucket),
     sorted by rating. Problems without a rating are skipped."""
-    # TODO
-    raise NotImplementedError
+    solved: Counter[int] = Counter()
+    attempted: Counter[int] = Counter()
+    for history in _problem_histories(submissions).values():
+        rating = history.problem.get("rating")
+        if rating is None:
+            continue
+        rating_bucket = rating // bucket * bucket
+        attempted[rating_bucket] += 1
+        if history.solved:
+            solved[rating_bucket] += 1
+    return [BucketStat(r, solved[r], attempted[r]) for r in sorted(attempted)]
 
 
 def comfort_rating(profile: list[BucketStat], min_solved: int = 3) -> int | None:
     """Highest bucket rating where the user solved at least `min_solved` problems."""
-    # TODO
-    raise NotImplementedError
+    return max((stat.rating for stat in profile if stat.solved >= min_solved), default=None)
 
 
 def target_range(user_rating: int | None, comfort: int | None) -> tuple[int, int]:
@@ -152,8 +239,8 @@ def target_range(user_rating: int | None, comfort: int | None) -> tuple[int, int
     base = max(user_rating, comfort, 800), with None treated as 0, rounded down to a multiple of 100.
     Return (base + 100, base + 300).
     """
-    # TODO
-    raise NotImplementedError
+    base = max(user_rating or 0, comfort or 0, 800) // 100 * 100
+    return base + 100, base + 300
 
 
 # ---- Topics ---------------------------------------------------------------------
@@ -164,15 +251,42 @@ def tag_stats(submissions: list[dict]) -> list[TagStat]:
     "First try" means the earliest submission (by creationTimeSeconds) for that
     problem was accepted. first_try_rate is 0.0 when nothing is solved.
     """
-    # TODO
-    raise NotImplementedError
+    attempted: Counter[str] = Counter()
+    solved: Counter[str] = Counter()
+    first_try: Counter[str] = Counter()
+    hardest: dict[str, int] = {}
+    for history in _problem_histories(submissions).values():
+        rating = history.problem.get("rating")
+        for tag in set(real_tags(history.problem)):
+            attempted[tag] += 1
+            if not history.solved:
+                continue
+            solved[tag] += 1
+            if history.first_try:
+                first_try[tag] += 1
+            if rating is not None and rating > hardest.get(tag, -1):
+                hardest[tag] = rating
+    stats = [
+        TagStat(
+            tag=tag,
+            solved=solved[tag],
+            attempted=attempted[tag],
+            first_try_rate=first_try[tag] / solved[tag] if solved[tag] else 0.0,
+            max_solved_rating=hardest.get(tag),
+        )
+        for tag in attempted
+    ]
+    return sorted(stats, key=lambda stat: (-stat.solved, stat.tag))
 
 
 def tag_importance(all_problems: list[dict], lo: int, hi: int) -> dict[str, float]:
     """For problems rated in [lo, hi]: the fraction that has each real tag.
     Empty dict if there are no problems in range."""
-    # TODO
-    raise NotImplementedError
+    in_range = [problem for problem in all_problems if _in_range(problem, lo, hi)]
+    if not in_range:
+        return {}
+    counts = Counter(tag for problem in in_range for tag in set(real_tags(problem)))
+    return {tag: count / len(in_range) for tag, count in counts.items()}
 
 
 def weak_topics(
@@ -190,16 +304,37 @@ def weak_topics(
         score = importance / (1 + solved_in_range)
     Return the top k by score descending, ties by tag name.
     """
-    # TODO
-    raise NotImplementedError
+    importance = tag_importance(all_problems, lo, hi)
+    solved_in_range = Counter(
+        tag
+        for problem in solved_problems(submissions).values()
+        if _in_range(problem, lo, hi)
+        for tag in set(real_tags(problem))
+    )
+    topics = [
+        WeakTopic(tag, share, solved_in_range[tag], share / (1 + solved_in_range[tag]))
+        for tag, share in importance.items()
+        if share >= min_importance
+    ]
+    # Round before comparing so scores that are equal on paper (0.6 / 3 vs 0.2) tie on
+    # floats too and fall back to the tag name.
+    topics.sort(key=lambda topic: (-round(topic.score, 12), topic.tag))
+    return topics[:k]
 
 
 # ---- Habits ---------------------------------------------------------------------
 
 def verdict_breakdown(submissions: list[dict]) -> VerdictStats:
     """Count submissions by verdict. Skip submissions with no verdict or verdict 'TESTING'."""
-    # TODO
-    raise NotImplementedError
+    judged = [submission for submission in submissions if _is_judged(submission)]
+    failures = Counter(s["verdict"] for s in judged if s["verdict"] != "OK")
+    solved = [h for h in _problem_histories(judged).values() if h.solved]
+    return VerdictStats(
+        total_submissions=len(judged),
+        accepted=len(judged) - failures.total(),
+        by_verdict=dict(failures.most_common()),
+        first_try_rate=sum(h.first_try for h in solved) / len(solved) if solved else 0.0,
+    )
 
 
 def contest_level(submissions: list[dict]) -> dict[str, float]:
@@ -208,15 +343,38 @@ def contest_level(submissions: list[dict]) -> dict[str, float]:
     the fraction of those contests where the user solved a problem with that letter.
     Only letters solved at least once appear. Empty dict if no live contests.
     """
-    # TODO
-    raise NotImplementedError
+    live = [submission for submission in submissions if _is_live(submission)]
+    contests = {submission.get("problem", {}).get("contestId") for submission in live}
+    if not contests:
+        return {}
+    contests_by_letter: dict[str, set] = defaultdict(set)
+    for submission in live:
+        problem = submission.get("problem", {})
+        index = problem.get("index", "")
+        if submission.get("verdict") == "OK" and index:
+            contests_by_letter[index[0]].add(problem.get("contestId"))
+    return {
+        letter: len(solved_in) / len(contests)
+        for letter, solved_in in sorted(contests_by_letter.items())
+    }
 
 
 def upsolve_list(submissions: list[dict]) -> list[dict]:
     """Problems attempted live in a contest (CONTESTANT) but never accepted in any submission.
     Each problem once, sorted by rating ascending (no rating last), then problem_key."""
-    # TODO
-    raise NotImplementedError
+    solved = solved_problems(submissions)
+    unsolved: dict[str, dict] = {}
+    for submission in submissions:
+        if not (_is_live(submission) and _is_judged(submission)):
+            continue
+        problem = submission.get("problem", {})
+        key = problem_key(problem)
+        if key not in solved:
+            unsolved.setdefault(key, problem)
+    return sorted(
+        unsolved.values(),
+        key=lambda p: (p.get("rating") is None, p.get("rating") or 0, problem_key(p)),
+    )
 
 
 # ---- Recommendations ------------------------------------------------------------
@@ -234,5 +392,23 @@ def recommend(
     Sort by: number of weak tags matched (desc), rating (asc), solvedCount (desc,
     missing = 0), problem_key (asc). Return at most `limit`.
     """
-    # TODO
-    raise NotImplementedError
+    weak = set(weak_tags)
+    candidates = []
+    for problem in all_problems:
+        if not _in_range(problem, lo, hi) or problem_key(problem) in solved_keys:
+            continue
+        matched = len(weak.intersection(real_tags(problem)))
+        if matched:
+            candidates.append((matched, problem))
+    # nsmallest keeps only `limit` items: O(n log limit) instead of sorting everything.
+    best = heapq.nsmallest(
+        limit,
+        candidates,
+        key=lambda item: (
+            -item[0],
+            item[1]["rating"],
+            -item[1].get("solvedCount", 0),
+            problem_key(item[1]),
+        ),
+    )
+    return [problem for _, problem in best]
