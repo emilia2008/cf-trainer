@@ -114,3 +114,22 @@ câu hỏi phỏng vấn) được hoàn thiện ở bước tài liệu cuối 
   `VERDICT_LABELS` đổi mã verdict thành chữ dễ đọc cho giao diện.
 - **Giới hạn:** link có thể chết theo thời gian; nên có một job định kỳ (không chạy trong test)
   kiểm tra lại link.
+
+### 6. Sync (`POST /api/users/{handle}/sync`)
+
+- **Service tách khỏi route:** `services/sync.py` không biết gì về HTTP (nhận `Session` và client,
+  trả `User`); route chỉ đổi exception thành mã lỗi: `HandleNotFound` → 404,
+  `CodeforcesError` → **502 Bad Gateway** (lỗi nằm ở dịch vụ phía sau, không phải ở client).
+- **Gọi hết API rồi mới ghi DB:** nếu Codeforces lỗi giữa chừng, dữ liệu cũ còn nguyên (có test).
+- **Handle không phân biệt hoa thường:** tra cứu bằng `lower(handle)`, lưu cách viết chuẩn của
+  Codeforces (`info["handle"]`). Gọi `user.rating`/`user.status` bằng handle chuẩn, nên handle cũ đã
+  đổi tên vẫn hoạt động (`user.info` tự tra handle lịch sử).
+- **Race khi hai request cùng tạo một user mới:** request thứ hai vi phạm unique → bắt
+  `IntegrityError`, rollback, thử lại một lần (lúc này tìm thấy dòng và cập nhật). Có test mô phỏng.
+- **Lưu submission "gọn"** (`slim_submission`): chỉ giữ các trường phân tích dùng, cộng
+  `relativeTimeSeconds` và `programmingLanguage` cho tính năng sau này. Bỏ thống kê chấm, danh sách
+  thành viên... nên JSON nhỏ còn khoảng 1/3. Đánh đổi: muốn dùng trường đã bỏ thì phải sync lại.
+- **Kiểm tra handle ở route** bằng regex `^[A-Za-z0-9_.\-]{1,64}$` → 422 khi sai định dạng. Việc này
+  còn chặn `a;b`, vì `user.info` coi dấu `;` là phân cách nhiều handle.
+- Thời gian lưu là UTC; SQLite làm mất múi giờ, nên schema Pydantic gắn lại UTC khi trả JSON
+  (`UTCDateTime`), để frontend không hiểu nhầm thành giờ địa phương.

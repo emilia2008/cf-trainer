@@ -1,40 +1,58 @@
-"""HTTP endpoints. Each one returns 501 until you implement it."""
+"""HTTP endpoints. Logic lives in app/services; routes only translate errors to status codes."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.orm import Session
 
+from app.cf_client import CodeforcesClient, CodeforcesError, HandleNotFound, get_cf_client
 from app.db import get_session
+from app.schemas import SyncResult
+from app.services import sync as sync_service
 
 router = APIRouter(tags=["report"])
+
+# Codeforces handles use Latin letters, digits, '_', '-' and '.'. Rejecting anything else
+# also stops "a;b" from turning into a multi-user user.info call.
+Handle = Annotated[
+    str,
+    Path(pattern=r"^[A-Za-z0-9_.\-]{1,64}$", description="Codeforces handle, e.g. tourist"),
+]
 
 
 def _todo() -> HTTPException:
     return HTTPException(status_code=501, detail="Not implemented yet")
 
 
-@router.post("/users/{handle}/sync")
-def sync_user(handle: str, session: Session = Depends(get_session)):
-    """Fetch the user's info, rating history and submissions from Codeforces and store them.
-
-    TODO: put the logic in app/services/sync.py and call it from here.
-    404 if the handle does not exist. Return the user's handle, rating and last_synced_at.
-    """
-    raise _todo()
+@router.post(
+    "/users/{handle}/sync",
+    response_model=SyncResult,
+    responses={404: {"description": "Unknown handle"}, 502: {"description": "Codeforces error"}},
+)
+def sync_user(
+    handle: Handle,
+    session: Session = Depends(get_session),
+    client: CodeforcesClient = Depends(get_cf_client),
+) -> SyncResult:
+    """Fetch the user's info, rating history and submissions from Codeforces and store them."""
+    try:
+        user = sync_service.sync_user(session, client, handle)
+    except HandleNotFound:
+        raise HTTPException(status_code=404, detail=f"Codeforces handle '{handle}' not found")
+    except CodeforcesError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    return SyncResult(
+        handle=user.handle,
+        rating=user.rating,
+        max_rating=user.max_rating,
+        rank=user.rank,
+        last_synced_at=user.last_synced_at,
+        submissions=len(user.snapshot.submissions),
+        contests=len(user.snapshot.rating_history),
+    )
 
 
 @router.get("/users/{handle}/report")
-def get_report(handle: str, session: Session = Depends(get_session)):
-    """The full analysis for one user, built from stored data. 404 if never synced.
-
-    TODO: put the logic in app/services/report.py. Suggested JSON sections:
-      overview         rank_info, rating, max rating, problems solved
-      rating_trend     rating_trend(...) plus the raw history for a chart
-      difficulty       difficulty_profile(...), comfort_rating(...), target_range(...)
-      topics           tag_stats(...)
-      weak_topics      weak_topics(...) with RESOURCES for each tag
-      habits           verdict_breakdown(...) with VERDICT_ADVICE, contest_level(...)
-      upsolve          upsolve_list(...) (first 10)
-      recommendations  recommend(...)
-    The full problem list is large and changes rarely: cache it (refresh at most once a day).
-    """
+def get_report(handle: Handle, session: Session = Depends(get_session)):
+    """The full analysis for one user, built from stored data. 404 if never synced."""
     raise _todo()
