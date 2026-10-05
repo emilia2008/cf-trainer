@@ -173,3 +173,29 @@ câu hỏi phỏng vấn) được hoàn thiện ở bước tài liệu cuối 
   hoạt động, link gym.
 - Một lỗi gặp khi viết test (lỗi của test, không phải của code): chèn vào đầu list trong vòng lặp
   làm `subs[2]` trỏ sang phần tử khác. Đã sửa bằng cách lấy phần tử cần sao chép ra trước vòng lặp.
+
+### 9. Frontend
+
+- **Cấu trúc:** `App.jsx` giữ trạng thái (`idle | loading | ready | error`), `api.js` gói `fetch`
+  (đọc `detail` của FastAPI làm thông báo lỗi), mỗi phần báo cáo là một component trong
+  `src/components/`, helper định dạng và màu rank trong `src/format.js`.
+- **Chống race ở client:** mỗi lần bấm Analyse tăng một bộ đếm (`useRef`); kết quả của request
+  cũ bị bỏ qua, nên gõ nhanh hai handle không bao giờ hiện nhầm báo cáo.
+- **Khi Codeforces sập:** nếu sync trả 502 mà server đã có bản lưu, vẫn hiện báo cáo kèm cảnh báo
+  "đang dùng dữ liệu lần sync trước".
+- **Link chia sẻ được:** handle nằm trên URL (`?handle=tourist`), mở link là tự phân tích.
+- **Giữ khung khi tải lại:** báo cáo cũ mờ đi trong lúc tải, không nhấp nháy hay nhảy bố cục.
+- **Biểu đồ (theo skill dataviz):** cặp màu xanh dương/cam lấy từ bảng màu đã kiểm định; đã chạy
+  validator cho cả chế độ sáng và tối (CVD ΔE ≈ 25, đều đạt). Đường 2px, cột tối đa 24px với khe
+  2px, lưới mảnh, tooltip ở mọi biểu đồ, và một bảng dữ liệu tương đương dưới mỗi biểu đồ
+  (tooltip không phải cách duy nhất để đọc số). Biểu đồ một series không cần chú giải; biểu đồ hai
+  series có chú giải.
+- **Màu rank Codeforces** được chỉnh tối hơn ở chế độ sáng (Specialist, Master) và sáng hơn ở chế
+  độ tối (Expert), để chữ đạt độ tương phản ≥ 3:1 mà vẫn nhận ra màu quen thuộc.
+- **Dark mode:** mặc định theo hệ điều hành; nút chuyển lưu lựa chọn vào `localStorage` (bọc
+  try/catch); script nhỏ trong `index.html` áp theme trước lần vẽ đầu tiên để không chớp trắng.
+- **Responsive:** lưới 12 cột, dưới 900px còn một cột; bảng cuộn ngang trong khung riêng, nên
+  trang không bao giờ cuộn ngang; thanh điều hướng các phần dính trên cùng khi cuộn.
+- **Tách chunk:** react và vendor (recharts, d3) riêng khỏi code app (27 kB), nên khi deploy bản mới
+  trình duyệt chỉ tải lại phần app.
+- `VITE_API_BASE` rỗng khi dev (đi qua Vite proxy `/api` → `:8000`), và đặt URL backend khi deploy riêng.
