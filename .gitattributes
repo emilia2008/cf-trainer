@@ -1,0 +1,2 @@
+# Store text files with LF line endings so Docker images and CI see the same files on every OS.
+* text=auto eol=lf
