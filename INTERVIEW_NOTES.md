@@ -133,3 +133,25 @@ câu hỏi phỏng vấn) được hoàn thiện ở bước tài liệu cuối 
   còn chặn `a;b`, vì `user.info` coi dấu `;` là phân cách nhiều handle.
 - Thời gian lưu là UTC; SQLite làm mất múi giờ, nên schema Pydantic gắn lại UTC khi trả JSON
   (`UTCDateTime`), để frontend không hiểu nhầm thành giờ địa phương.
+
+### 7. Report (`GET /api/users/{handle}/report`) và ProblemCache
+
+- **`build_report` chỉ ghép các hàm trong `analysis.py`,** không viết lại logic phân tích. Phần
+  thêm vào chỉ là trình bày: lý do của tag yếu, nhãn verdict, URL bài, `usually_solves_up_to`.
+- **ProblemCache:** danh sách bài (~10.000 bài, vài MB JSON) giữ trong bộ nhớ, TTL 24 giờ, `clock`
+  truyền qua constructor để test "24 giờ sau" mà không phải chờ.
+  - **Giữ lock trong lúc tải:** khi cache rỗng, 5 request đồng thời chỉ tải một lần (tránh
+    *cache stampede*); có test bằng thread thật.
+  - **Dùng bản cũ khi làm mới thất bại** (stale-on-error): nếu Codeforces sập lúc hết hạn, vẫn
+    phục vụ bản cũ và hẹn thử lại sau 5 phút (không gọi lại Codeforces ở *mọi* request).
+  - **Giới hạn:** cache nằm trong từng process; chạy 3 server thì có 3 bản và mỗi bản tự tải lại.
+    Muốn dùng chung thì đưa vào Redis hoặc một bảng `problems` trong PostgreSQL và làm mới bằng job định kỳ.
+- **`get_problem_cache()` là dependency** nên mỗi test dùng một cache mới, không rò trạng thái.
+- **Lời khuyên verdict** chỉ hiện khi verdict chiếm *hơn* 15% số lần nộp sai (`share > 0.15`).
+- **`usually_solves_up_to`** = chữ cái xa nhất được giải trong ít nhất 50% số contest live.
+  Không đòi các chữ liên tiếp từ A, vì có người bỏ B để làm C.
+- **URL bài:** `https://codeforces.com/problemset/problem/{contestId}/{index}` như yêu cầu. Riêng
+  contest gym (id ≥ 100000) không có trong problemset nên link đó sẽ 404; với gym mình dùng
+  `https://codeforces.com/gym/{id}/problem/{index}`. Đây là sai khác có chủ ý để link luôn mở được.
+- **Upsolve** trả `total` cùng tối đa 10 bài, để giao diện hiện được "10 of 37".
+- **404 trước khi sync** kèm hướng dẫn gọi sync; **502** khi không tải được danh sách bài.

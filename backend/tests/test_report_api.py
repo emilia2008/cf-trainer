@@ -131,3 +131,19 @@ def test_slim_submission_keeps_only_used_fields():
 def test_slim_submission_keeps_missing_verdict_missing():
     slim = slim_submission({"id": 1, "problem": {}, "author": {}})
     assert "verdict" not in slim
+
+
+# ---- Report -------------------------------------------------------------------------
+
+REPORT_SECTIONS = {
+    "handle", "last_synced_at", "overview", "rating_trend", "difficulty", "topics",
+    "weak_topics", "habits", "upsolve", "recommendations",
+}
+
+
+def test_report_after_sync_has_every_section(api):
+    assert api.post("/api/users/alice/sync").status_code == 200
+    response = api.get("/api/users/alice/report")
+
+    assert response.status_code == 200
+    assert set(response.json()) == REPORT_SECTIONS

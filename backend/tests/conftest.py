@@ -13,6 +13,7 @@ from app import models  # noqa: E402,F401  (registers tables with Base)
 from app.cf_client import CodeforcesError, HandleNotFound, get_cf_client  # noqa: E402
 from app.db import Base, get_session, make_engine  # noqa: E402
 from app.main import app  # noqa: E402
+from app.services.report import ProblemCache, get_problem_cache  # noqa: E402
 
 
 @pytest.fixture
@@ -146,8 +147,13 @@ def fake_cf() -> FakeCodeforces:
 
 
 @pytest.fixture
-def api(engine, fake_cf):
-    """TestClient wired to the test database and the fake Codeforces client."""
+def problem_cache() -> ProblemCache:
+    return ProblemCache()
+
+
+@pytest.fixture
+def api(engine, fake_cf, problem_cache):
+    """TestClient wired to the test database, the fake Codeforces client and a fresh cache."""
     TestSession = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
     def override_session():
@@ -156,6 +162,7 @@ def api(engine, fake_cf):
 
     app.dependency_overrides[get_session] = override_session
     app.dependency_overrides[get_cf_client] = lambda: fake_cf
+    app.dependency_overrides[get_problem_cache] = lambda: problem_cache
     with TestClient(app) as client:
         yield client
     app.dependency_overrides.clear()
