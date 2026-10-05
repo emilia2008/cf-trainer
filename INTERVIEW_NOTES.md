@@ -155,3 +155,21 @@ câu hỏi phỏng vấn) được hoàn thiện ở bước tài liệu cuối 
   `https://codeforces.com/gym/{id}/problem/{index}`. Đây là sai khác có chủ ý để link luôn mở được.
 - **Upsolve** trả `total` cùng tối đa 10 bài, để giao diện hiện được "10 of 37".
 - **404 trước khi sync** kèm hướng dẫn gọi sync; **502** khi không tải được danh sách bài.
+
+### 8. Test API
+
+- **`TestClient` + `app.dependency_overrides`:** thay `get_session` (SQLite in-memory với
+  `StaticPool`), `get_cf_client` (`FakeCodeforces` trả dữ liệu cố định) và `get_problem_cache`
+  (cache mới cho mỗi test). Không test nào gọi Codeforces thật.
+- **Vì sao `StaticPool`:** với `sqlite://`, mỗi connection mới là một database rỗng riêng.
+  `StaticPool` dùng chung một connection, nên dữ liệu ghi trong request còn thấy được trong test.
+- **Dữ liệu giả = kịch bản của `test_analysis.py`** nhưng đủ trường như API thật, nên mọi con số
+  của báo cáo tính tay được và test so sánh chính xác (target 1400–1600, tag yếu dp/graphs/math,
+  gợi ý 10A, 10C, 10F, 10B, upsolve 6B, 4D, 3C...).
+- Các test chính: sync thành công; handle không tồn tại → 404; sync hai lần không trùng (đếm dòng);
+  report trước sync → 404; report sau sync đủ các phần và đúng số liệu. Thêm: không phân biệt hoa
+  thường, handle sai định dạng → 422, Codeforces lỗi → 502 và giữ dữ liệu cũ, race khi insert,
+  ngưỡng 15% của lời khuyên verdict, danh sách bài chỉ tải 1 lần qua nhiều report, user chưa có
+  hoạt động, link gym.
+- Một lỗi gặp khi viết test (lỗi của test, không phải của code): chèn vào đầu list trong vòng lặp
+  làm `subs[2]` trỏ sang phần tử khác. Đã sửa bằng cách lấy phần tử cần sao chép ra trước vòng lặp.
