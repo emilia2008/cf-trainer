@@ -369,6 +369,30 @@ nên sync lỗi giữa chừng không làm hỏng dữ liệu cũ.
 - Test mới: biên 20 so với 21 bài ở cấp hàm, và test API cho thấy target chỉ tăng lên 1600–1800 khi có
   21 bài ở mức 1500 (20 bài thì vẫn theo rating 1350, tức 1400–1600).
 
+### 15. Deploy và kiểm tra bản live (06/10/2026)
+
+- **Bạn đã deploy:** frontend `https://cf-trainer-1.onrender.com` (Render static site), backend
+  `https://cf-trainer-1rga.onrender.com` (Render web service; địa chỉ này mình đọc ra từ bundle JavaScript,
+  nơi `VITE_API_BASE` được nhúng lúc build), database Neon.
+- **Kết quả kiểm tra (gọi thật từ máy ở Việt Nam):**
+  - `/api/health` 200 (~0,8 giây, chủ yếu là độ trễ mạng sang server Render); `/docs` 200.
+  - CORS đúng: preflight và GET đều trả `access-control-allow-origin: https://cf-trainer-1.onrender.com`.
+  - Sync DmitriyH: 200 trong 7,5 giây (3 lời gọi Codeforces cách nhau 2 giây). Report: 200 trong 2,2 giây;
+    gọi lại 1,8 giây. Instance free chỉ có 0,1 CPU và phải đọc snapshot ~0,9 MB từ Neon mỗi lần, nên nếu
+    cần nhanh hơn thì cache report theo `last_synced_at` (xem phần 5).
+  - Handle không tồn tại → 404; handle sai định dạng → 422; link lạ (`/some/spa/route`) vẫn mở app (rewrite đúng).
+  - Báo cáo live dùng ngưỡng comfort mới (DmitriyH: comfort 2200, target 2300–2500), tức backend đang
+    chạy đúng code mới nhất. Ảnh chụp trang live đã đưa vào README (`docs/screenshot.png`).
+- **Lỗi tìm thêm và đã sửa:**
+  1. **Image backend crash nếu thiếu `DATABASE_URL`:** container chạy bằng `appuser` nhưng `/app` thuộc root,
+     nên SQLite không tạo được `dev.db` và `create_all` lỗi ngay lúc khởi động. Bản của bạn không bị vì đã
+     đặt Neon. Sửa: `chown appuser:appuser /app`; CI thêm bước chạy image *không có* `DATABASE_URL` và chờ
+     `/api/health`.
+  2. **Thông báo trống ở "Practise next"** sai lý do với user rating rất cao (tourist): giờ ghi rõ là target
+     range không có bài nào, thay vì "không có tag yếu".
+- **Dữ liệu trong ảnh README:** DmitriyH là tài khoản Codeforces công khai (dữ liệu từ API public). Khi bạn có
+  handle của mình, nên thay ảnh bằng báo cáo của chính bạn.
+
 ---
 
 ## 4. Độ phức tạp các hàm trong `analysis.py`

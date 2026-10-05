@@ -11,8 +11,9 @@ RUN pip install -r requirements.txt
 
 COPY app ./app
 
-# Run as an unprivileged user.
-RUN useradd --create-home --uid 1000 appuser
+# Run as an unprivileged user. It owns /app so the SQLite fallback (no DATABASE_URL) can create
+# its file; production sets DATABASE_URL to PostgreSQL.
+RUN useradd --create-home --uid 1000 appuser && chown appuser:appuser /app
 USER appuser
 
 EXPOSE 8000

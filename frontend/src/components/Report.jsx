@@ -54,7 +54,8 @@ export default function Report({ report, dimmed }) {
         <WeakTopics topics={report.weak_topics} range={difficulty.target_range}
                     problemsInRange={difficulty.problems_in_range} />
         <Recommendations problems={report.recommendations} range={difficulty.target_range}
-                         hasWeakTopics={weakTags.length > 0} />
+                         hasWeakTopics={weakTags.length > 0}
+                         problemsInRange={difficulty.problems_in_range} />
         <Habits habits={report.habits} />
         <UpsolveList upsolve={report.upsolve} />
         <TopicTable topics={report.topics} weakTags={weakTags} />

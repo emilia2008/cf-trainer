@@ -6,7 +6,13 @@ which problems to practise next to climb to the next rank.
 
 [![CI](https://github.com/emilia2008/cf-trainer/actions/workflows/ci.yml/badge.svg)](https://github.com/emilia2008/cf-trainer/actions/workflows/ci.yml)
 
-<!-- After deploying (see DEPLOY.md): add the live link, a screenshot and the number of real users. -->
+**Live demo: [cf-trainer-1.onrender.com](https://cf-trainer-1.onrender.com/)** (try
+[`?handle=tourist`](https://cf-trainer-1.onrender.com/?handle=tourist)). It runs on free hosting,
+so the first request after a quiet period can take about a minute while the server wakes up.
+
+![CF Trainer report: overview, rating trend, difficulty with the target range, weak topics and recommendations](docs/screenshot.png)
+
+<!-- TODO: add the number of real users once people have tried it. -->
 
 ## What the report shows
 
