@@ -225,3 +225,26 @@ câu hỏi phỏng vấn) được hoàn thiện ở bước tài liệu cuối 
     (xem phần "Điểm yếu và cách cải thiện").
   - `live_contests` (405) của tourist lớn hơn số contest có rating (308), vì có cả contest không tính
     rating mà vẫn thi trực tiếp.
+
+### 11. Docker
+
+- **Máy không cài Docker** (`docker: command not found`), nên không chạy được `docker compose up`
+  ở local. Thay vào đó, CI chạy job `docker` trên GitHub: build cả hai image, `docker compose up`,
+  rồi gọi `/api/health` trực tiếp và qua nginx (xem bước 12).
+- **Backend image:** `python:3.12-slim`, chạy bằng user không phải root, `CMD` đọc `$PORT` (Render,
+  Railway, Koyeb truyền cổng qua biến này), `--proxy-headers` vì chạy sau reverse proxy.
+  `.dockerignore` loại `.venv`, test, file `.db`, `.env`.
+- **Frontend image (multi-stage):** stage `node:22-alpine` chạy `npm ci && npm run build`; stage
+  `nginx:alpine` chỉ chứa thư mục `dist` (image nhỏ, không có Node). `nginx.conf`:
+  - `/api/` → `proxy_pass ${BACKEND_URL}`: trình duyệt gọi cùng origin nên **không cần CORS**.
+    `BACKEND_URL` được điền lúc container khởi động (cơ chế `templates/` + `envsubst` của image
+    nginx), nên cùng một image dùng được ở nơi khác.
+  - `/assets/` cache 1 năm (`immutable`, vì tên file có hash); `index.html` thì `no-cache`;
+    fallback SPA bằng `try_files $uri /index.html`.
+- **Compose:** `db` (postgres:16) có healthcheck `pg_isready`; `backend` chờ `db` *healthy*, có
+  healthcheck gọi `/api/health` bằng Python (image slim không có curl); `frontend` chờ backend *healthy*.
+  Dữ liệu PostgreSQL nằm trong volume `pgdata`, nên tắt container không mất dữ liệu.
+- **Vì sao backend gọi DB bằng host `db` chứ không phải `localhost`:** mỗi container có network
+  namespace riêng; `localhost` trong container backend là chính nó. Compose tạo DNS nội bộ theo tên service.
+- Đã kiểm tra `package-lock.json` (tạo trên Windows) có đủ binary rollup/esbuild cho Linux (gnu và
+  musl), nên `npm ci` chạy được trong Alpine và trên Ubuntu của CI.

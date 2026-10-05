@@ -1,24 +1,46 @@
-# Runs PostgreSQL + the backend. Start with: docker compose up --build
+# PostgreSQL + FastAPI backend + nginx frontend.
+#   docker compose up --build      then open http://localhost:8080
 services:
   db:
-    image: postgres:16
+    image: postgres:16-alpine
     environment:
       POSTGRES_USER: cf
       POSTGRES_PASSWORD: cf
       POSTGRES_DB: cf_trainer
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cf -d cf_trainer"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   backend:
     build: ./backend
     environment:
       DATABASE_URL: postgresql+psycopg://cf:cf@db:5432/cf_trainer
+      # The browser talks to nginx on the same origin; this only matters for direct calls.
+      CORS_ORIGINS: http://localhost:8080,http://localhost:5173
     ports:
-      - "8000:8000"
+      - "8000:8000"   # API and docs at http://localhost:8000/docs
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  frontend:
+    build: ./frontend
+    environment:
+      BACKEND_URL: http://backend:8000
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
   pgdata:
