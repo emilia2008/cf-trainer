@@ -98,3 +98,19 @@ câu hỏi phỏng vấn) được hoàn thiện ở bước tài liệu cuối 
   chưa bao giờ tụt rating thì giá trị này dương; giao diện hiển thị "No drops yet" trong trường hợp đó.
 - `test_analysis_edge_cases.py` bổ sung 17 test cho biên rank, thứ tự đầu vào, submission đang chấm,
   hòa điểm float, giới hạn bao gồm hai đầu của target range, tag `*special` trong gợi ý.
+
+### 5. Tài liệu học (resources.py)
+
+- **Mọi đường dẫn sâu đều được kiểm tra bằng HTTP** (mã 200 *và* `<title>` khớp chủ đề). Trước đó đã
+  thử một đường dẫn bịa trên từng site để chắc chúng trả 404 thật (không phải trang 200 giả kiểu SPA).
+- 5 đường dẫn mình đoán đã trả 404 và bị loại: `usaco.guide/gold/combinatorics`,
+  `/gold/string-hashing`, `/gold/topo-sort`, `/bronze/complete-search`, `/bronze/intro-math`.
+  Đây là bằng chứng rằng việc "đoán URL" rất dễ sai.
+- Với CSES chỉ dùng trang chủ `cses.fi/problemset/`, tiêu đề ghi rõ section cần làm
+  (ví dụ "Dynamic Programming section").
+- Đủ 19 tag yêu cầu, thêm `hashing`; tag khác dùng `GENERAL_RESOURCES` (3 trang chủ).
+- Có test không cần mạng: đủ tag bắt buộc, mọi URL là https và thuộc 3 domain được phép.
+- `VERDICT_ADVICE` thêm lời khuyên cho CE, bị hack (`CHALLENGED`) và ILE (bài interactive);
+  `VERDICT_LABELS` đổi mã verdict thành chữ dễ đọc cho giao diện.
+- **Giới hạn:** link có thể chết theo thời gian; nên có một job định kỳ (không chạy trong test)
+  kiểm tra lại link.
